@@ -46,9 +46,9 @@ import requests
 
 from course_db import connect
 
-TEAM = "dasher"                                                       # your team
+TEAM = "prancer"                                                       # your team
 URL = "https://api.weather.gov/stations/KPIT/observations"
-HEADERS = {"User-Agent": "36-614 project (andrewid@andrew.cmu.edu)"}  # your address
+HEADERS = {"User-Agent": "36-614 project (ahou@andrew.cmu.edu)"}  # your address
 
 # 1. Ask the API for the data. raise_for_status() stops the script here if the
 #    API answered with an error, instead of loading nothing.
