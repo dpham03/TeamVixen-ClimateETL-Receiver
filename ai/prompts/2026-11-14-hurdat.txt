@@ -1,0 +1,23 @@
+Using this starter code, I want to be able to load in the CSV data from HURDAT2,
+I noticed that there is an alternating 4-field storm header and 20-21 field header, 
+so I need to be able to load both types into normalized CSVs, validating that each
+storm's track count matches the header declaration. Then, I need to load these CSVs
+using COPY as in the starter code.
+
+
+from pathlib import Path
+
+from course_db import connect
+
+TEAM = "dasher"                                      # your team
+CSV_FILE = Path("data/raw/pittsburgh-oct-2025.csv")  # the file to load
+
+# Nothing is saved until this block ends without an error. If any row fails,
+# no rows are loaded.
+with connect(team=TEAM) as conn:
+    with conn.cursor() as cur:
+        with cur.copy("COPY pittsburgh_oct FROM STDIN (FORMAT csv, HEADER true)") as copy:
+            with open(CSV_FILE, "rb") as f:
+                for line in f:
+                    copy.write(line)
+        print(f"Loaded {cur.rowcount} rows from {CSV_FILE}.")

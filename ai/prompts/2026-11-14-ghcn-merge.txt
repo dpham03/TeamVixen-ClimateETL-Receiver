@@ -1,0 +1,4 @@
+Using the starter src/refresh.py pattern for team prancer, update merge() 
+so that newly inserted GHCN-Daily stations from course.stations are 
+automatically assigned their nearest county_fips from course.counties
+while staging and validating observations from course.observations.

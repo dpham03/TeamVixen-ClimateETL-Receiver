@@ -1,0 +1,30 @@
+I am working on a climate risk analytics & P&C insurace underwriting project where I need to create a database from existing online web sources of data. 
+
+Here is my draft PostgreSQL schema so far. I know the tables I need, the columns, and the row units, but some column types may not be most specific and I haven't added keys, indexes, or CHECK constraints yet. Please review and refine the types, primary/unique keys, foreign keys, unit comments, and CHECK constraints so the schema enforces valid coordinates, FIPS codes, non-negative damage/counts, and clean joins to course.counties:
+
+-- county_demographics (row unit: one county)
+county_fips VARCHAR, county_name TEXT, acs_year INT, population INT, median_income FLOAT, median_home_value FLOAT, housing_units INT
+
+-- storm_events (row unit: one NOAA storm event)
+event_id INT, episode_id INT, state_fips VARCHAR, state_abbr VARCHAR, state_name TEXT, cz_type VARCHAR, cz_fips VARCHAR, county_fips VARCHAR, event_type TEXT, begin_ts TIMESTAMP, end_ts TIMESTAMP, injuries_direct INT, injuries_indirect INT, deaths_direct INT, deaths_indirect INT, damage_property_usd FLOAT, damage_crops_usd FLOAT, magnitude FLOAT, magnitude_type TEXT, begin_lat FLOAT, begin_lon FLOAT, end_lat FLOAT, end_lon FLOAT, fips_source TEXT
+
+-- hurdat_storms (row unit: one hurricane)
+storm_id TEXT, storm_name TEXT, basin VARCHAR, cyclone_number INT, season_year INT, num_track_points INT
+
+-- hurdat_tracks (row unit: one hurricane track point)
+track_id INT, storm_id TEXT, observed_at TIMESTAMP, record_identifier VARCHAR, system_status TEXT, lat FLOAT, lon FLOAT, max_wind_kt INT, min_pressure_mb INT
+
+-- stations (row unit: one weather station)
+station_id TEXT, name TEXT, state VARCHAR, county_fips VARCHAR, lat FLOAT, lon FLOAT, elevation FLOAT
+
+-- observations (row unit: one station on one date)
+obs_id INT, station_id TEXT, date DATE, tmax FLOAT, tmin FLOAT, precip FLOAT
+
+-- nws_observations (row unit: one NWS station observation timestamp)
+station_id TEXT, observed_at TIMESTAMP, lat FLOAT, lon FLOAT, temperature_c FLOAT, dewpoint_c FLOAT, wind_speed_kmh FLOAT, wind_gust_kmh FLOAT, barometric_pressure_pa FLOAT, relative_humidity_pct FLOAT, text_description TEXT
+
+-- nws_alerts (row unit: one NWS alert)
+alert_id TEXT, event TEXT, severity TEXT, certainty TEXT, urgency TEXT, area_desc TEXT, county_fips TEXT, effective_at TIMESTAMP, expires_at TIMESTAMP, headline TEXT
+
+-- ingestion_runs (row unit: one refresh run)
+run_id INT, started_at TIMESTAMP, source TEXT, rows_staged INT, rows_inserted INT, rows_updated INT

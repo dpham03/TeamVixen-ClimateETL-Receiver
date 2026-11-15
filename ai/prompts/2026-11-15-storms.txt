@@ -1,0 +1,16 @@
+I want to use the starter load_api code I provided earlier to load another
+data set, this time from NOAA NCEI Storm Events. Each data file is a 
+.csv.gz extension and they span the years 1996-2026. After looking at 
+the raw data, it seems that here are some other requirements I need to
+satisfy when loading the data into my table: 
+
+- parse the monetary damanges (K/M/B) into USD
+
+- address out-of-range coordinates (like those with latitude or longitude
+outside of the ranges [-90,90] and [-180,180] respectively)
+
+- map county_fips directly for county events (where CZ_TYPE = 'C') or
+via the U.S. Census Geocoder API for forecast-zone events (CZ_TYPE = 'Z')
+
+Use COPY to stage each year's file and I think you'll have to upsert into 
+the storm_events table for team prancer.
