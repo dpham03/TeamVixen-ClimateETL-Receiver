@@ -1,14 +1,8 @@
-# [Project name] · [team, e.g. dasher]
-
-> **Starter repository for the 36-614 project.** Every requirement is in the
-> [project brief](https://stat.cmu.edu/~sgallagh/courses/mads-fall-2026/computing-36614/final-project-framework.html); these files only show where each piece goes, with short
-> examples from the shared course weather data. Replace the examples, and delete these
-> notes before you tag `handoff`.
+# Climate Risk Analytics & P&C Insurance Underwriting · Team Prancer
 
 ## What this system is for
 
-*Two or three sentences: who the client is, what decision the system supports, and what
-it does not cover.*
+This PostgreSQL system supports a property and casualty (P&C) firm's insurance underwriting and exposure team. It helps figure out how much to charge for policies in areas with different weather risks, decide when and where to allocate extra claims adjusters during busy storm seasons, and identify which specific weather patterns lead to the most expensive flood and storm payouts due to damage. To do this, it integrates historical NOAA storm events (1996-2026), NHC HURDAT2 Atlantic hurricane tracks (1980-2025), GHCN-Daily weather station logs, live NWS observations and alerts, and 2024 U.S. Census ACS 5-year county demographics; these are joined on county FIPS codes. It does not cover proprietary policy-level claims, Zillow typical home values, or satellite building-damage imagery.
 
 ## Start here
 
@@ -20,9 +14,9 @@ print. Example:*
    "Successfully installed …".
 2. `export PGUSER="andrewid@andrew.cmu.edu"` and `python src/course_db.py`. It should
    print "Connected to mads_f26 as …".
-3. `python src/refresh.py --team dasher --start 2025-09-01 --end 2025-10-01 --dry-run`.
+3. `python src/refresh.py --team prancer --start 2025-09-01 --end 2025-10-01 --dry-run`.
    It should report how many rows it would insert and update, then undo everything.
-4. `python src/report.py --team dasher --state PA --start 2025-09-01 --end 2025-10-01`.
+4. `python src/report.py --team prancer --state PA --start 2025-09-01 --end 2025-10-01`.
    It should print a table of stations.
 
 ## What's in the handoff pack
