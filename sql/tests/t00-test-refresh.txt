@@ -1,0 +1,22 @@
+ Tests:
+  - ghcn   (daily):   python src/refresh.py --team prancer --source ghcn --start 2025-09-01 --end 2025-10-01
+  - nws    (hourly):  python src/refresh.py --team prancer --source nws
+  - storms (monthly): python src/refresh.py --team prancer --source storms --start 2026-01-01 --end 2026-12-31
+  - hurdat (season):  python src/refresh.py --team prancer --source hurdat
+  - census (annual):  python src/refresh.py --team prancer --source census --dry-run
+
+Expect each to output number of rows staged, inserted, and updated
+(plus census test should be a dry run, so undo all changes).
+
+Outputs: 
+- [ghcn (2025-09-01 to 2025-10-01)] 15070 rows staged, 15070 inserted, 0 updated.
+- [nws (live observations)] 2500 rows staged, 4 inserted, 0 updated.
+- [noaa_storms (2026-01-01 to 2026-12-31)] 48150 rows staged, 0 inserted, 0 updated.
+- [hurdat2 (atlantic best tracks)] 21335 rows staged, 0 inserted, 0 updated.
+- [census_acs5 (county demographics)] 3222 rows staged, 0 inserted, 0 updated.
+    Dry run: undoing all changes.
+
+As expected.
+These tests don't check that all time frames work but since the command
+line arguments are specified to be start and end date, we do have sufficient
+reason to believe that other date ranges will work the same.
