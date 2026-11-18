@@ -31,23 +31,6 @@ each.*
 *How to get back to a good state after a failed or bad load: what to rerun, in what
 order, and how to confirm it worked.*
 
-## Reports
-
-> One subsection per Part II visualization: the client question it answers, the code
-> and queries that build it, how to regenerate it, and what to check when new data
-> arrive.
-
-### Seasonality playbook (example)
-
-- **Client question:** how does hail exposure shift through the year, and when does the
-  hurricane season take over?
-- **Built by:** `reports/report.qmd`, using `sql/queries/q05-events-by-month.sql`.
-- **Regenerate:** `quarto render reports/report.qmd` after a refresh.
-- **When new data arrive:** the current year is partial; the chart marks it, and it
-  shouldn't be compared with full years until it's complete.
-- **Check after each refresh:** last year's monthly totals haven't changed unless the
-  source revised them.
-
 ## Who owns what
 
 *After the handoff, which team is responsible for each part, and who to ask about the
