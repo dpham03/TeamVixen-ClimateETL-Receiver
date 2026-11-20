@@ -17,3 +17,5 @@ data/raw/
 **/.DS_Store
 
 *.ipynb
+
+random.sql

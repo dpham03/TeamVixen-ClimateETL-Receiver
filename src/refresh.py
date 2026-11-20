@@ -161,24 +161,46 @@ def refresh_ghcn(
 
     conn.execute(
         """
-        INSERT INTO stations (station_id, name, state, lat, lon, elevation)
-        SELECT c.station_id, c.name, c.state, c.lat, c.lon, c.elevation
+        INSERT INTO stations (
+            station_id,
+            name,
+            state_fips,
+            lat,
+            lon,
+            elevation
+        )
+        SELECT
+            c.station_id,
+            c.name,
+            s.state_fips,
+            c.lat,
+            c.lon,
+            c.elevation
         FROM course.stations AS c
-        WHERE c.station_id IN (SELECT station_id FROM stage_observations)
-        ON CONFLICT (station_id) DO NOTHING
+        LEFT JOIN prancer.states AS s
+            ON c.state = s.state_abbr
+        WHERE c.station_id IN (
+            SELECT station_id FROM stage_observations
+        )
+        ON CONFLICT (station_id) DO NOTHING;
         """
     )
+
     conn.execute(
         """
-        UPDATE stations AS s
+        UPDATE prancer.stations AS s
         SET county_fips = (
-          SELECT c.county_fips
-          FROM course.counties AS c
-          WHERE c.state = s.state
-          ORDER BY ((c.lat - s.lat) * 69.0)^2 + ((c.lon - s.lon) * 69.0 * cos(radians(s.lat)))^2
-          LIMIT 1
+            SELECT c.county_fips
+            FROM course.counties AS c
+            WHERE LEFT(c.county_fips, 2) = s.state_fips  -- avoids a join 
+            ORDER BY
+                ((c.lat - s.lat) * 69.0)^2
+                + ((c.lon - s.lon) * 69.0
+                * cos(radians(s.lat)))^2
+            LIMIT 1
         )
-        WHERE s.county_fips IS NULL AND s.state IS NOT NULL
+        WHERE s.county_fips IS NULL
+        AND s.state_fips IS NOT NULL;
         """
     )
 
