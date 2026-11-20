@@ -5,6 +5,21 @@
 SET ROLE prancer_write;
 SET search_path = prancer, course, public;
 
+
+-- Row unit: one US state, district, or territory
+CREATE TABLE prancer.states (
+    state_fips CHAR(2) PRIMARY KEY,
+    state_abbr CHAR(2) UNIQUE NOT NULL,
+    state_name TEXT UNIQUE NOT NULL,
+
+    CONSTRAINT valid_state_fips
+        CHECK (state_fips ~ '^[0-9]{2}$'),
+
+    CONSTRAINT valid_state_abbr
+        CHECK (state_abbr ~ '^[A-Z]{2}$')
+);
+
+
 -- ============================================================================
 -- 1. CENSUS ACS 5-YEAR COUNTY DEMOGRAPHICS (Annual schedule)
 -- ============================================================================
@@ -28,11 +43,12 @@ CREATE TABLE county_demographics (
 CREATE TABLE storm_events (
   event_id            BIGINT PRIMARY KEY,
   episode_id          BIGINT,
-  state_fips          CHAR(2) NOT NULL CHECK (state_fips ~ '^[0-9]{2}$'),
-  state_abbr          CHAR(2) CHECK (state_abbr ~ '^[A-Z]{2}$'),
-  state_name          TEXT NOT NULL,
-  cz_type             CHAR(1) NOT NULL CHECK (cz_type IN ('C', 'Z', 'M')), -- C=County, Z=Zone, M=Marine
+  state_fips          CHAR(2) REFERENCES prancer.states(state_fips),
+  noaa_region         TEXT,                                                -- ocean regions (State_FIPS Will be NULL)
+  cz_type             CHAR(1) NOT NULL, -- C=County, Z=Zone, M=Marine, 5 = Desert (if not error)
   cz_fips             VARCHAR(3) NOT NULL,
+  cz_name             TEXT,
+  cz_timezone         TEXT,
   county_fips         CHAR(5) CHECK (county_fips IS NULL OR county_fips ~ '^[0-9]{5}$'),
   event_type          TEXT NOT NULL,
   begin_ts            TIMESTAMPTZ NOT NULL,                      -- UTC
@@ -48,9 +64,7 @@ CREATE TABLE storm_events (
   begin_lat           DOUBLE PRECISION CHECK (begin_lat BETWEEN -90 AND 90),     -- decimal degrees
   begin_lon           DOUBLE PRECISION CHECK (begin_lon BETWEEN -180 AND 180),   -- decimal degrees
   end_lat             DOUBLE PRECISION CHECK (end_lat BETWEEN -90 AND 90),       -- decimal degrees
-  end_lon             DOUBLE PRECISION CHECK (end_lon BETWEEN -180 AND 180),     -- decimal degrees
-  fips_source         TEXT NOT NULL DEFAULT 'direct'
-                      CHECK (fips_source IN ('direct', 'geocoder', 'unmatched'))
+  end_lon             DOUBLE PRECISION CHECK (end_lon BETWEEN -180 AND 180)     -- decimal degrees
 );
 
 CREATE INDEX idx_storm_events_episode ON storm_events (episode_id);
@@ -96,7 +110,7 @@ CREATE INDEX idx_hurdat_tracks_lat_lon ON hurdat_tracks (lat, lon);
 CREATE TABLE stations (
   station_id  TEXT PRIMARY KEY,
   name        TEXT NOT NULL,
-  state       CHAR(2) CHECK (state ~ '^[A-Z]{2}$'),
+  state_fips CHAR(2) REFERENCES prancer.states(state_fips),
   county_fips CHAR(5) CHECK (county_fips IS NULL OR county_fips ~ '^[0-9]{5}$'),
   lat         DOUBLE PRECISION NOT NULL CHECK (lat BETWEEN -90 AND 90),   -- decimal degrees
   lon         DOUBLE PRECISION NOT NULL CHECK (lon BETWEEN -180 AND 180), -- decimal degrees
@@ -155,10 +169,17 @@ CREATE TABLE nws_alerts (
 
 -- Row unit: one execution of src/refresh.py for one data source.
 CREATE TABLE ingestion_runs (
-  run_id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  started_at    TIMESTAMPTZ NOT NULL DEFAULT now(),            -- UTC
-  source        TEXT NOT NULL,
-  rows_staged   INTEGER NOT NULL CHECK (rows_staged >= 0),     -- rows
-  rows_inserted INTEGER NOT NULL CHECK (rows_inserted >= 0),   -- rows
-  rows_updated  INTEGER NOT NULL CHECK (rows_updated >= 0)     -- rows
+    run_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    source TEXT NOT NULL,
+    filename TEXT,
+    status TEXT NOT NULL DEFAULT 'success'
+        CHECK (status IN ('success', 'failed')),
+    rows_staged INTEGER NOT NULL DEFAULT 0 CHECK (rows_staged >= 0),
+    rows_inserted INTEGER NOT NULL DEFAULT 0 CHECK (rows_inserted >= 0),
+    rows_updated INTEGER NOT NULL DEFAULT 0 CHECK (rows_updated >= 0)
 );
+
+CREATE INDEX IF NOT EXISTS idx_ingestion_source_filename
+ON prancer.ingestion_runs (source, filename)
+WHERE status = 'success';
