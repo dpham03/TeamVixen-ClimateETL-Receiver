@@ -6,6 +6,10 @@ def load_states(path="data/states.psv"):
     # Read the pipe-separated file
     df = pd.read_csv(path, sep="|", dtype=str)
 
+    TARGET_STATES = {"TX", "LA", "AL", "GA", "FL", "SC", "NC", "VA"}
+
+    df = df[df["STUSAB"].isin(TARGET_STATES)].copy()
+
     # Select and rename columns
     df = df[["STATE", "STUSAB", "STATE_NAME"]].rename(
         columns={

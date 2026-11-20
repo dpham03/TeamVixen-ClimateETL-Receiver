@@ -76,6 +76,18 @@ def transform_storms(df):
     df = df[COLUMNS].copy()
     df.columns = df.columns.str.lower()
 
+    TARGET_STATE_NAMES = {
+    "TEXAS",
+    "LOUISIANA",
+    "ALABAMA",
+    "GEORGIA",
+    "FLORIDA",
+    "SOUTH CAROLINA",
+    "NORTH CAROLINA",
+    "VIRGINIA"}
+
+    df = df[df["state"].str.strip().str.upper().isin(TARGET_STATE_NAMES)].copy()
+
     # Geographic identifiers (preserve leading zeros)
     for col, width in [("state_fips", 2), ("cz_fips", 3)]:
         df[col] = (
@@ -84,29 +96,6 @@ def transform_storms(df):
             .astype("string")
             .str.zfill(width)
         )
-
-    # NOAA-specific territory conversions
-    STATE_FIPS_MAP = {
-        "99": "72",  # Puerto Rico
-        "96": "78",  # Virgin Islands
-        "97": "60",  # American Samoa
-        "98": "66",  # Guam
-    }
-
-    states_df = pd.read_csv("./data/states.psv", sep= "|", dtype=str)
-    # Standard state/territory FIPS + NOAA territory codes
-    valid_fips = set(states_df["STATE"]) | set(STATE_FIPS_MAP)
-
-    # Identify NOAA regions
-    mask = df["state_fips"].notna() & ~df["state_fips"].isin(valid_fips)
-
-    df["noaa_region"] = df["state"].where(mask)
-    df.loc[mask, "state_fips"] = pd.NA
-
-    # Convert territory codes to Census FIPS
-    df["state_fips"] = df["state_fips"].replace(STATE_FIPS_MAP)
-
-    df = df.drop(columns=["state"])
 
     # Derive county FIPS for county-reported events
     df["county_fips"] = pd.Series(pd.NA, index=df.index, dtype="string")
@@ -225,7 +214,6 @@ def load_stage(conn, df):
         "event_id",
         "episode_id",
         "state_fips",
-        "noaa_region",
         "event_type",
         "cz_type",
         "cz_fips",
@@ -266,7 +254,6 @@ def load_stage(conn, df):
                 event_id,
                 episode_id,
                 state_fips,
-                noaa_region,
                 event_type,
                 cz_type,
                 cz_fips,
@@ -329,7 +316,7 @@ def merge(conn):
     """Insert new storms and update existing storms if changed."""
 
     columns = [
-        "event_id", "episode_id", "state_fips", "noaa_region",
+        "event_id", "episode_id", "state_fips",
         "event_type", "cz_type", "cz_fips", "cz_name",
         "begin_ts", "end_ts", "cz_timezone",
         "damage_property_usd", "damage_crops_usd",

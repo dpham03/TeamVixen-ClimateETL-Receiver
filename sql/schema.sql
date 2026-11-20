@@ -43,9 +43,8 @@ CREATE TABLE county_demographics (
 CREATE TABLE storm_events (
   event_id            BIGINT PRIMARY KEY,
   episode_id          BIGINT,
-  state_fips          CHAR(2) REFERENCES prancer.states(state_fips),
-  noaa_region         TEXT,                                                -- ocean regions (State_FIPS Will be NULL)
-  cz_type             CHAR(1) NOT NULL, -- C=County, Z=Zone, M=Marine, 5 = Desert (if not error)
+  state_fips          CHAR(2) NOT NULL REFERENCES prancer.states(state_fips),
+  cz_type             CHAR(1) NOT NULL CHECK (cz_type IN ('Z', 'C', 'M')), -- C=County, Z=Zone, M=Marine, 5 = Desert (if not error)
   cz_fips             VARCHAR(3) NOT NULL,
   cz_name             TEXT,
   cz_timezone         TEXT,
