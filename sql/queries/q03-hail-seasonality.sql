@@ -5,14 +5,14 @@
 -- Test: sql/tests/t03-hail-seasonality.sql
 
 SELECT
-    state_abbr,
+    state_fips,
     EXTRACT(MONTH FROM begin_ts) AS month,
     COUNT(*) AS hail_events,
     SUM(damage_property_usd) AS total_damage_usd
 FROM prancer.storm_events
 WHERE event_type = 'Hail'
-  AND state_abbr IN ('TX', 'LA', 'FL', 'GA', 'SC', 'NC')
+  AND state_fips IN ('48', '22', '12', '13', '45', '37')
   AND begin_ts >= DATE '2015-01-01'
   AND begin_ts < DATE '2026-01-01'
-GROUP BY state_abbr, EXTRACT(MONTH FROM begin_ts)
-ORDER BY state_abbr, month;
+GROUP BY state_fips, EXTRACT(MONTH FROM begin_ts)
+ORDER BY state_fips, month;

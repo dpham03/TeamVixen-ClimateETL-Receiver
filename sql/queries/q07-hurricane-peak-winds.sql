@@ -1,7 +1,10 @@
--- Question: What is the strongest recorded track point for each Atlantic storm in the Southeast coastal box?
+-- Question: What is the strongest recorded track point
+-- for each Atlantic storm in the Southeast coastal box?
 -- Client use: Screen storms with peak winds near the target region.
 -- Row unit: One hurricane/cyclone with a matching track point.
--- Exclusions / caveats: Atlantic tracks for 1980–2025; approximate Southeast latitude/longitude box; strongest track point selected, not necessarily landfall.
+-- Exclusions / caveats: Atlantic tracks for 1980–2025;
+-- approximate Southeast latitude/longitude box;
+-- strongest track point selected, not necessarily landfall.
 -- Test: sql/tests/t07-hurricane-peak-winds.sql
 
 WITH ranked_tracks AS (

@@ -1,8 +1,7 @@
--- Test for q08-hurricane-station-proximity.sql.
--- A one-degree latitude separation should be about 111.2 km.
--- Also check that the prefilter box does not exclude a station within
--- 50 km of one representative eligible hurricane track point.
--- Returns zero rows when the checks pass.
+-- Test for Q08; zero rows = pass.
+-- One degree of latitude should be approximately 111.2 km.
+-- Also checks whether the bounding box excludes any station
+-- within 50 km of one representative track point.
 
 WITH one_degree AS (
     SELECT 2 * 6371 * asin(sqrt(
@@ -35,14 +34,21 @@ every_distance AS (
         )) AS km
     FROM prancer.stations AS s
     CROSS JOIN point AS p
-    WHERE s.state IN ('TX', 'LA', 'FL', 'GA', 'SC', 'NC')
+    WHERE s.state_fips IN ('48', '22', '12', '13', '45', '37')
 )
-SELECT 'one degree of latitude not about 111.2 km' AS problem
+SELECT
+    'one degree of latitude not about 111.2 km' AS problem
 FROM one_degree
 WHERE abs(km - 111.2) > 0.1
+
 UNION ALL
-SELECT 'station inside 50 km excluded by box: ' || station_id
+
+SELECT
+    'station inside 50 km excluded by box: ' || station_id
 FROM every_distance
 WHERE km <= 50
-  AND NOT (lat BETWEEN track_lat - 0.50 AND track_lat + 0.50
-       AND lon BETWEEN track_lon - 0.65 AND track_lon + 0.65);
+  AND NOT (
+      lat BETWEEN track_lat - 0.50 AND track_lat + 0.50
+      AND lon BETWEEN track_lon - 0.65 AND track_lon + 0.65
+  );
+  

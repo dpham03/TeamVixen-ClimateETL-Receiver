@@ -1,8 +1,11 @@
--- Sanity check for q03-hail-seasonality.sql; zero rows = pass.
--- This checks source invariants only, not result accuracy.
+-- Sanity check for Q03; zero rows = pass.
+-- Checks whether extracted hail months are valid.
+
 SELECT event_id
 FROM prancer.storm_events
 WHERE event_type = 'Hail'
-  AND state_abbr IN ('TX', 'LA', 'FL', 'GA', 'SC', 'NC')
-  AND (EXTRACT(MONTH FROM begin_ts) < 1
-       OR EXTRACT(MONTH FROM begin_ts) > 12);
+  AND state_fips IN ('48', '22', '12', '13', '45', '37')
+  AND (
+      EXTRACT(MONTH FROM begin_ts) < 1
+      OR EXTRACT(MONTH FROM begin_ts) > 12
+  );
