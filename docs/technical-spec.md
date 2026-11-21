@@ -61,39 +61,39 @@ flowchart LR
     CLI["src/refresh.py<br/>(--team prancer, --source,<br/>--start, --end, --dry-run)"] --> TX
 
     subgraph TX["Atomic PostgreSQL Transaction (course_db.connect)"]
-        direction LR
+        direction TB
 
         subgraph S1["1. --source ghcn (Daily)"]
-            direction TB
-            GHCN_IN["course.observations &amp;<br/>course.stations"] --> GHCN_STG["pg_temp.stage_observations<br/>+ run_checks() &amp; County Spatial Match"]
-            GHCN_STG -->|ON CONFLICT Upsert| T1[("stations,<br/>observations")]
+            direction LR
+            GHCN_IN["course.observations &amp;<br/>course.stations"] --> GHCN_STG["pg_temp.stage_observations<br/>+ run_checks() &amp; County Match"]
+            GHCN_STG -->|Upsert| T1[("stations,<br/>observations")]
         end
 
         subgraph S2["2. --source nws (Hourly)"]
-            direction TB
+            direction LR
             NWS_IN["NWS REST API<br/>(KPIT, KMIA, KHOU,<br/>KDFW, KORD)"] --> NWS_STG["pg_temp.stage_nws<br/>+ run_checks()"]
-            NWS_STG -->|ON CONFLICT Upsert| T2[("nws_observations")]
+            NWS_STG -->|Upsert| T2[("nws_observations")]
         end
 
         subgraph S3["3. --source storms (Monthly)"]
-            direction TB
+            direction LR
             STM_IN["NOAA NCEI Bulk CSVs<br/>(data/raw/storm_events/)"] --> STM_STG["pg_temp.stage_storms<br/>+ Parse K/M/B/T &amp; FIPS"]
-            STM_STG -->|ON CONFLICT Upsert| T3[("storm_events")]
+            STM_STG -->|Upsert| T3[("storm_events")]
         end
 
         subgraph S4["4. --source hurdat (Seasonal)"]
-            direction TB
-            HUR_IN["NHC HURDAT2 Archive<br/>(1980–Present)"] --> HUR_STG["pg_temp.stage_hurdat_tracks<br/>+ Track Count &amp; Lat/Lon Checks"]
-            HUR_STG -->|ON CONFLICT Upsert| T4[("hurdat_storms,<br/>hurdat_tracks")]
+            direction LR
+            HUR_IN["NHC HURDAT2 Archive<br/>(1980–Present)"] --> HUR_STG["pg_temp.stage_hurdat_tracks<br/>+ Track &amp; Coord Checks"]
+            HUR_STG -->|Upsert| T4[("hurdat_storms,<br/>hurdat_tracks")]
         end
 
         subgraph S5["5. --source census (Annual)"]
-            direction TB
+            direction LR
             CEN_IN["U.S. Census ACS 5-Yr API<br/>(CENSUS_API_KEY)"] --> CEN_STG["pg_temp.stage_census<br/>+ run_checks()"]
-            CEN_STG -->|ON CONFLICT Upsert| T5[("county_demographics")]
+            CEN_STG -->|Upsert| T5[("county_demographics")]
         end
 
-        S1 -.-> LOG[("ingestion_runs<br/>(logs source, rows_staged,<br/>rows_inserted, rows_updated)")]
+        S1 -.-> LOG[("ingestion_runs<br/>(logs source, staged, inserted, updated)")]
         S2 -.-> LOG
         S3 -.-> LOG
         S4 -.-> LOG
@@ -102,7 +102,7 @@ flowchart LR
 
     TX --> DRY{"--dry-run?"}
     DRY -->|Yes| RB["raise psycopg.Rollback()<br/>(All Changes Undone)"]
-    DRY -->|No| CM["Transaction Commit &rarr;<br/>PostgreSQL Schema (prancer / vixen)"]
+    DRY -->|No| CM["Transaction Commit &rarr;<br/>Schema (prancer / vixen)"]
     CM --> RPT["src/report.py &amp;<br/>sql/queries/q01–q08 + sql/tests/t01–t08"]
 ```
 
