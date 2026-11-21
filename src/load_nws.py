@@ -12,6 +12,8 @@ STATIONS = [
     "KIAH",  # George Bush Intercontinental Airport (Houston, TX)
     "KAUS",  # Austin-Bergstrom International Airport (Austin, TX)
     "KSAT",  # San Antonio International Airport (San Antonio, TX)
+    "KHOU",  # William P. Hobby Airport (Houston, TX)
+
 
     # Louisiana (LA)
     "KMSY",  # Louis Armstrong New Orleans International Airport (New Orleans, LA)
@@ -36,6 +38,11 @@ STATIONS = [
     "KCHS",  # Charleston International Airport (Charleston, SC)
     "KCAE",  # Columbia Metropolitan Airport (Columbia, SC)
     "KGSP",  # Greenville-Spartanburg International Airport (Greer, SC)
+
+    # Other 
+    # from trials
+    "KORD",  # O'Hare International Airport (Chicago, Illinois)
+    "KPIT",  # Pittsburgh International Airport (Pittsburgh, Pennsylvania)
 ]
 HEADERS = {
     "User-Agent": "36-614 project (ahou@andrew.cmu.edu)",              
