@@ -65,7 +65,7 @@ flowchart LR
 
         subgraph S1["1. Weather Feeds (ghcn &amp; nws)"]
             direction TB
-            W_IN["course.observations &amp;<br/>NWS API (5 Stations)"] -->|Load into| T1[("stations, observations,<br/>nws_observations")]
+            W_IN["course.observations &amp;<br/>NWS API (Stations for SE Region)"] -->|Load into| T1[("stations, observations,<br/>nws_observations")]
         end
 
         subgraph S2["2. Hazard Archives (storms &amp; hurdat)"]
@@ -75,7 +75,7 @@ flowchart LR
 
         subgraph S3["3. Exposure Data (census)"]
             direction TB
-            C_IN["U.S. Census ACS 5-Yr API<br/>(CENSUS_API_KEY)"] -->|Load into| T3[("county_demographics")]
+            C_IN["2024 U.S. Census ACS 5-Yr API<br/>(CENSUS_API_KEY)"] -->|Load into| T3[("county_demographics")]
         end
 
         subgraph S4["4. Staging &amp; Validation Gate"]
