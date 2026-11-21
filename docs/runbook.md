@@ -4,7 +4,7 @@ Step-by-step guide for **Team Prancer's** Climate Risk Analytics and P&C Insuran
 
 Team Prancer's PostgreSQL database is hosted on the Carnegie Mellon University course server (`mads_f26`) under the `prancer` schema. The system uses CMU Microsoft Entra authentication through the course-provided `course_db.py` module.
 
-Post-handoff commands below should update to `--team vixen` (`vixen` schema); use `prancer` when inspecting Team Prancer's original build.
+The commands below use Team Prancer’s original `prancer` schema. For the Team Vixen handoff, update the team name in the individual loaders and refresh scripts and change their schema-qualified SQL references, along with the corresponding schema setup and validation queries, to `vixen`. The new refresh controller does not accept `--team`.
 
 ---
 
@@ -44,7 +44,7 @@ python src/course_db.py
 Verify that `course_db.connect()` resolves to your target database and schema:
 
 ```bash
-python -c "from course_db import connect; conn = connect(team='prancer'); print(conn.execute('SELECT current_database(), current_schema()').fetchone()); conn.close()"
+PYTHONPATH=src python -c "from course_db import connect; conn = connect(team='prancer'); print(conn.execute('SELECT current_database(), current_schema()').fetchone()); conn.close()"
 ```
 
 **Expected output:**
@@ -59,7 +59,6 @@ Set your team write role and search path at the start of any direct SQL session:
 ```sql
 SET ROLE prancer_write;
 SET search_path = prancer, course, public;
-SELECT current_user, current_role, current_schema();
 ```
 
 > **Caution:** Do not re-run `sql/schema.sql` against an already populated schema unless performing an authorized full rebuild.
@@ -68,98 +67,144 @@ SELECT current_user, current_role, current_schema();
 
 ## Refresh the data
 
-All ingestion pipelines are orchestrated by `src/refresh.py` from the repository root with `.venv` activated. Each `--source` runs inside an atomic `conn.transaction()` block with `ON COMMIT DROP` staging tables (`stage_observations`, `stage_nws`, `stage_storms`, `stage_hurdat_tracks`, `stage_census`), so any validation failure rolls back cleanly without partial writes.
+The ingestion pipelines are orchestrated by `src/refresh.py` from the repository root with `.venv` activated. Each individual refresh script handles its own data extraction, staging, merging, and database transactions. Temporary staging tables are dropped on commit, and a failed transaction rolls back without affecting previously committed data. GHCN commits historical data by year and API observations by batch.
 
-The primary analytical scope covers **six Gulf and Southeast states**: Texas (`48`), Louisiana (`22`), Florida (`12`), Georgia (`13`), South Carolina (`45`), and North Carolina (`37`). Some upstream loaders ingest broader national coverage; downstream client queries apply state filters.
+The primary geographic scope covers **eight states**: Texas (`48`), Louisiana (`22`), Alabama (`01`), Georgia (`13`), Florida (`12`), South Carolina (`45`), North Carolina (`37`), and Virginia (`51`). GHCN observations, station metadata, Storm Events, NWS observations and alerts, and Census demographics are filtered to this region. HURDAT2 retains Atlantic hurricane tracks, including portions outside these states.
+
+### Initial database setup and historical backfill
+
+For a new, empty schema, create the database tables using `sql/schema.sql` with the appropriate team role and schema, then load the states reference table before the other data sources:
+
+```bash
+psql -d mads_f26 -v ON_ERROR_STOP=1 -f sql/schema.sql
+python src/load_states.py
+```
+
+The states loader reads `data/states.psv` and populates the eight target states. The course-provided `course.counties` table supplies county reference data.
+
+Load historical GHCN observations and then current-year observations separately. Historical years are inclusive; adjust the range to the desired backfill coverage.
+
+```bash
+python src/refresh_ghcn.py --mode bulk --start-year 1996 --end-year 2025
+python src/refresh_ghcn.py --mode api --start-date 2026-01-01
+```
+
+Load the other data sources:
+
+```bash
+python src/refresh_storms.py
+python src/refresh_hurricanes.py
+python src/refresh_nws.py
+python src/refresh_nws_alerts.py
+python src/refresh_census.py --acs-year 2024
+```
+
+The NWS loaders retrieve recent observations and alerts, not a multi-year historical backfill. Update the current-year GHCN start date and ACS release year as appropriate when initializing in a later year.
+
+### Routine refreshes
+
+After initialization, refresh all sources using:
+
+```bash
+python src/refresh.py --source all
+```
+
+Each source can also be refreshed independently according to the schedules below. The controller calls the individual refresh functions with their default settings. Historical backfill and source-specific options are handled by the individual scripts, not the controller.
 
 ### 1. GHCN-Daily Weather Observations — Daily
 
-Pulls daily station temperature (`tmax`, `tmin`) and precipitation (`precip`) from `course.observations`, resolves missing station metadata and nearest `county_fips`, and merges into `observations`.
+Downloads annual GHCN-Daily archives directly from NOAA NCEI for historical backfills and uses the NOAA daily-summaries API for current-year updates. Loads daily station temperature (`tmax`, `tmin`) and precipitation (`precip`) into `observations`. Station metadata are loaded into `stations`, and missing `county_fips` values are assigned using the nearest county centroid within the same state (an approximate geographic match).
 
 ```bash
-python src/refresh.py --team prancer --source ghcn --start 2025-09-01 --end 2025-10-01
+python src/refresh.py --source ghcn
 ```
 
-**Recorded output from initial load:**
-```text
-[ghcn (2025-09-01 to 2025-10-01)] 15070 rows staged, 15070 inserted, 0 updated.
+The routine API refresh retrieves the previous 14 days by default, restricted to the current calendar year and active/recent stations. To specify a different current-year window, call the individual script:
+
+```bash
+python src/refresh_ghcn.py --mode api --start-date 2026-01-01
 ```
-*Note: Re-running an unchanged window reports `0 inserted, 0 updated`.*
+
+Historical files already recorded as successfully loaded are skipped. To reprocess a specific historical year, use:
+
+```bash
+python src/refresh_ghcn.py --mode bulk --start-year 1996 --end-year 1996 --force
+```
+
+*Note: Re-running an unchanged window reports `0 inserted, 0 updated`. At the annual rollover, load the previous year's bulk archive to reconcile historical observations.*
 
 ### 2. National Weather Service (NWS) Surface Observations — Hourly
 
-Fetches the latest ~500 automated surface observations per station across benchmark airport stations in the Southeast region across states Texas, Louisiana, Florida, Georgia, North Carolina, and South Carolina from `api.weather.gov` into `nws_observations`.
+Fetches surface observations from `api.weather.gov` for ASOS (Automated Surface Observing System) stations within the eight target states. The NOAA ASOS metadata list currently identifies 219 stations. ASOS stations provide standardized, continuous weather measurements suitable for short-term severe-weather analysis. The loader requests the previous three days and retains the latest returned observation within each station-hour, with timestamps floored to the hour to avoid duplicate hourly records across refreshes.
 
 ```bash
-python src/refresh.py --team prancer --source nws
+python src/refresh.py --source nws
 ```
 
-**Recorded output:**
+**Recorded output from the hourly loader:**
 ```text
-[nws (live observations)] 2500 rows staged, 4 inserted, 0 updated.
+Reduced 64,054 observations to 14,679 hourly observations
+Fetched 14,679 observations
+NWS refresh complete.
+Rows staged: 14,679
+Rows inserted: 14,679
+Rows updated: 0
+Rows unchanged: 0
 ```
-*Note: Counts vary as live hourly observations arrive. Refreshing `nws_alerts` requires a separate workflow outside `refresh_nws()`.*
+
+*Note: Counts vary as live observations arrive. The API request cap may truncate the requested three-day window for some stations. Older stored observations are retained.*
 
 ### 3. NOAA Storm Events — Monthly
 
-Scrapes the NOAA NCEI Storm Events directory, caches annual `.csv.gz` archives locally in `data/raw/storm_events/`, parses `K/M/B/T` damage multipliers, validates county FIPS codes, and upserts into `storm_events`. (`--end` is exclusive.)
+Checks the NOAA NCEI Storm Events directory for annual `.csv.gz` archives, processes historical and revised files, parses damage multipliers, and upserts severe-weather events within the target states into `storm_events`.
 
 ```bash
-python src/refresh.py --team prancer --source storms --start 2026-01-01 --end 2026-12-31
+python src/refresh.py --source storms
 ```
 
-**Recorded output:**
-```text
-[noaa_storms (2026-01-01 to 2026-12-31)] 48150 rows staged, 0 inserted, 0 updated.
-```
+*Note: Previously loaded unchanged files may be skipped; new or revised archives are processed by the individual refresh script.*
 
 ### 4. NHC HURDAT2 Atlantic Best Tracks — Seasonal
 
-Downloads the latest NHC `hurdat2-1851-*.txt` archive, validates track point counts per cyclone (`1980`–present), and merges storm headers into `hurdat_storms` and 6-hourly/landfall fixes into `hurdat_tracks`.
+Downloads the NHC HURDAT2 Atlantic best-track archive and merges storm headers into `hurdat_storms` and track fixes into `hurdat_tracks`.
 
 ```bash
-python src/refresh.py --team prancer --source hurdat
+python src/refresh.py --source hurricanes
 ```
 
-**Recorded output:**
-```text
-[hurdat2 (atlantic best tracks)] 21335 rows staged, 0 inserted, 0 updated.
-```
+*Note: Atlantic tracks are not limited to the eight states because storms can develop and travel outside the region.*
 
 ### 5. U.S. Census ACS 5-Year County Demographics — Annual
 
-Fetches 2024 ACS 5-year county estimates (population, median household income, median home value, and housing units) via the Census Data API into `county_demographics`. Requires `CENSUS_API_KEY`.
+Fetches ACS 5-year county estimates (population, median household income, median home value, and housing units) for the eight target states via the Census Data API into `county_demographics`. Requires `CENSUS_API_KEY`. The table stores one record per county and prevents older ACS releases from overwriting newer records.
 
 ```bash
-export CENSUS_API_KEY="YOUR_CENSUS_API_KEY"
-python src/refresh.py --team prancer --source census
+python src/refresh.py --source census
 ```
 
-**Recorded output (with `--dry-run`):**
-```text
-[census_acs5 (county demographics)] 3222 rows staged, 0 inserted, 0 updated.
-Dry run: undoing all changes.
-```
-
-### 6. Test any refresh without committing (`--dry-run`)
-
-Append `--dry-run` to execute live downloads, staging checks, and `ON CONFLICT` merges before rolling back the transaction (including the `ingestion_runs` log row):
+The default ACS year is 2024. To load a different available release, use:
 
 ```bash
-python src/refresh.py --team prancer --source ghcn --start 2025-09-01 --end 2025-10-01 --dry-run
+python src/refresh_census.py --acs-year 2024
 ```
 
-**Expected output:**
-```text
-[ghcn (2025-09-01 to 2025-10-01)] 15070 rows staged, 0 inserted, 0 updated.
-Dry run: undoing all changes.
+Replace the year with the desired release when available.
+
+### 6. National Weather Service (NWS) Alerts — Hourly
+
+Fetches recent weather warnings, watches, and advisories from the NWS alerts API for the eight target states using a three-day lookback. Alerts affecting multiple states are deduplicated by `alert_id`. County FIPS arrays are derived from county-specific SAME codes when available. Previously stored alerts are retained after expiration.
+
+```bash
+python src/refresh.py --source nws_alerts
 ```
+
+*Note: The observations and alerts loaders are separate refresh sources. The controller's `--source all` runs both.*
 
 ---
 
 ## Check the output
 
-After each refresh, confirm schema tables, row counts, date coverage, SQL test assertions, and storage consumption.
+After each refresh, confirm schema tables, row counts, date coverage, and SQL test assertions.
 
 ### 1. Confirm all core tables exist
 
@@ -172,17 +217,17 @@ ORDER BY tablename;
 
 | Table | Contents |
 |---|---|
-| `states` | U.S. state, district, and territory FIPS lookup (`56` rows) |
-| `counties` | U.S. county boundaries, land area, and centroids |
+| `states` | Target-state FIPS lookup (`8` rows) |
+| `course.counties` | Course-provided county reference data and centroids |
 | `county_demographics` | 2024 Census ACS 5-year county socioeconomic & housing exposure |
 | `storm_events` | NOAA severe-weather events, casualties, and property/crop damage |
 | `hurdat_storms` | NHC HURDAT2 tropical cyclone metadata (`1980`–present) |
 | `hurdat_tracks` | 6-hourly synoptic, peak intensity, and landfall track fixes |
 | `stations` | GHCN-Daily station metadata mapped to `state_fips` and `county_fips` |
 | `observations` | Daily GHCN temperature and precipitation observations |
-| `nws_observations` | Automated hourly NWS surface observations (`KPIT`, `KMIA`, `KHOU`, `KDFW`, `KORD`) |
-| `nws_alerts` | Active NWS weather warnings and watches |
-| `ingestion_runs` | Audit log of every `src/refresh.py` execution |
+| `nws_observations` | Hourly NWS surface observations from selected ASOS stations |
+| `nws_alerts` | Recent NWS weather warnings, watches, and advisories (retained historically) |
+| `ingestion_runs` | Audit log of recorded ingestion runs |
 
 ### 2. Check row counts and newest dates loaded
 
@@ -195,17 +240,16 @@ SELECT 'hurdat_tracks', COUNT(*), MIN(observed_at)::text, MAX(observed_at)::text
 UNION ALL
 SELECT 'nws_observations', COUNT(*), MIN(observed_at)::text, MAX(observed_at)::text FROM prancer.nws_observations
 UNION ALL
-SELECT 'county_demographics', COUNT(*), MIN(acs_year)::text, MAX(acs_year)::text FROM prancer.county_demographics;
+SELECT 'county_demographics', COUNT(*), MIN(acs_year)::text, MAX(acs_year)::text FROM prancer.county_demographics
+UNION ALL
+SELECT 'nws_alerts', COUNT(*), MIN(effective_at)::text, MAX(effective_at)::text FROM prancer.nws_alerts;
 ```
 
-**Normal baseline expectations (as of November 20 validation):**
-* `storm_events`: `~421,037` rows (`1996-01-01` through `2026-08-31`)
-* `hurdat_tracks`: `~21,335` track fixes (`1980`–present)
-* `county_demographics`: `3,222` U.S. counties (`acs_year = 2024`)
+Counts depend on the historical backfill, upstream releases, and refresh date. The states table should contain eight records; Census should cover the counties and county equivalents in the target region.
 
-### 3. Verify six-state Gulf & Southeast coverage
+### 3. Verify eight-state coverage
 
-Confirm all six target states are populated in `storm_events`:
+Confirm all eight target states are populated in `storm_events`:
 
 ```sql
 SELECT
@@ -215,7 +259,7 @@ SELECT
     MAX(e.begin_ts)::date AS latest_event
 FROM prancer.storm_events AS e
 JOIN prancer.states AS s USING (state_fips)
-WHERE e.state_fips IN ('48', '22', '12', '13', '45', '37')
+WHERE e.state_fips IN ('48', '22', '01', '13', '12', '45', '37', '51')
 GROUP BY s.state_abbr, e.state_fips
 ORDER BY e.state_fips;
 ```
@@ -229,7 +273,7 @@ ORDER BY run_id DESC
 LIMIT 10;
 ```
 
-*Normal behavior:* Each non-dry-run refresh appends one row (`rows_staged`, `rows_inserted`, `rows_updated`). Rerunning an unchanged date window yields `rows_inserted = 0` and `rows_updated = 0`.
+*Normal behavior:* Ingestion records reflect completed loads. Historical sources may log individual files, and skipped files need not produce a new record. Rerunning unchanged data should produce zero inserts and updates; live sources may receive new data between runs.
 
 ### 5. Execute client SQL queries (`sql/queries/`) and validation tests (`sql/tests/`)
 
@@ -237,40 +281,26 @@ Run the eight validation test scripts (`t01`–`t08`) against your schema:
 
 ```bash
 for t in sql/tests/t0[1-8]*.sql; do
-    echo "=== Running \$t ==="
-    psql -d mads_f26 -v ON_ERROR_STOP=1 -c "SET search_path = prancer, course, public;" -f "\$t"
+    echo "=== Running $t ==="
+    psql -d mads_f26 -v ON_ERROR_STOP=1 -c "SET search_path = prancer, course, public;" -f "$t"
 done
 ```
 
 **What normal looks like:** **Every passing test returns `0` rows.** Any returned rows indicate data anomalies or broken invariants requiring investigation. (Note: `t00` database-level validation scripts are separate and require further review.)
 
-**November 20 validation benchmarks for `sql/queries/q01`–`q08`:**
+**Client queries in `sql/queries/q01`–`q08` (row counts vary with scope and data coverage):**
 
-| Query | Analytical Focus | Expected Rows Returned |
-|---|---|---:|
-| `Q01` — Flood damage by year | Annual flood property loss trajectory | `66` |
-| `Q02` — Flood frequency vs. severity | State-level frequency vs. severity decomposition | `6` |
-| `Q03` — Hail seasonality | Seasonal hail exposure across target regions | `70` |
-| `Q04` — Billion-dollar episodes | Catastrophic multi-billion-dollar storm episodes | `4` |
-| `Q05` — Fatalities vs. damage | Under-counted property damage relative to mortality | `29` |
-| `Q06` — County damage per capita | Per-capita and housing-adjusted county storm losses | `25` |
-| `Q07` — Hurricane peak winds | Maximum sustained wind intensity by cyclone | `25` |
-| `Q08` — Hurricane station proximity | Coastal station observations near cyclone tracks | `100` |
+| Query | Analytical Focus |
+|---|---|
+| `Q01` — Flood damage by year | Annual flood property loss trajectory |
+| `Q02` — Flood frequency vs. severity | State-level frequency vs. severity decomposition |
+| `Q03` — Hail seasonality | Seasonal hail exposure across target regions |
+| `Q04` — Billion-dollar episodes | Catastrophic multi-billion-dollar storm episodes |
+| `Q05` — Fatalities vs. damage | Under-counted property damage relative to mortality |
+| `Q06` — County damage per capita | Per-capita and housing-adjusted county storm losses |
+| `Q07` — Hurricane peak winds | Maximum sustained wind intensity by cyclone |
+| `Q08` — Hurricane station proximity | Coastal station observations near cyclone tracks |
 
-### 6. Check database storage against the 8 GB team budget
-
-```sql
-SELECT
-    pg_size_pretty(SUM(pg_total_relation_size(c.oid))) AS team_size,
-    ROUND((SUM(pg_total_relation_size(c.oid)) / (8.0 * 1024^3) * 100)::numeric, 2) AS pct_of_8gb_limit
-FROM pg_class AS c
-JOIN pg_namespace AS n
-    ON n.oid = c.relnamespace
-WHERE n.nspname = 'prancer'
-  AND c.relkind IN ('r', 'm');
-```
-
-*Normal behavior:* Storage remains well under the **8 GB** per-team quota (including indexes). Avoid ingesting multi-decade nationwide GHCN windows when only the six-state Southeast region is needed.
 
 ---
 
@@ -281,16 +311,14 @@ WHERE n.nspname = 'prancer'
 | `ModuleNotFoundError: No module named 'course_db'` | Script was invoked outside the repo root or `.venv` is inactive | `cd` to the repository root, run `source .venv/bin/activate`, and verify `src/course_db.py` exists |
 | CMU Entra authentication failure | Expired SSO token or missing `PGUSER` | Run `export PGUSER="YOUR_ANDREW_ID@andrew.cmu.edu"`, complete CMU Microsoft Entra sign-in, and retry |
 | `Missing CENSUS_API_KEY environment variable.` | `--source census` ran without `CENSUS_API_KEY` set | Run `export CENSUS_API_KEY="your_key"` and re-execute |
-| `Validation failed; nothing was loaded: negative precipitation` or `tmax below tmin` | Upstream `course.observations` contained invalid physical values | Transaction rolled back automatically; inspect bad rows in `course.observations`, log in `docs/technical-spec.md`, and rerun |
-| `HURDAT2 integrity error on <storm_id>: expected <X> pts, saw <Y>` | NHC's `hurdat2` archive had a truncated storm record or partial download | Wait 1–2 minutes and rerun `--source hurdat`; no partial rows were committed |
-| `requests.exceptions.HTTPError` or `ReadTimeout` (NWS / NOAA / Census) | Upstream federal API is temporarily throttled or unreachable | Wait 2–5 minutes and retry; cached `.csv.gz` files in `data/raw/storm_events/` are reused automatically |
+| `Validation failed; nothing was loaded: negative precipitation` or `tmax below tmin` | Upstream NOAA observations contained invalid physical values | Transaction rolled back automatically; inspect the source data, log in `docs/technical-spec.md`, and rerun |
+| `HURDAT2 integrity error on <storm_id>: expected <X> pts, saw <Y>` | NHC's `hurdat2` archive had a truncated storm record or partial download | Wait 1–2 minutes and rerun `--source hurricanes`; no partial rows were committed |
+| `requests.exceptions.HTTPError` or `ReadTimeout` (NWS / NOAA / Census) | Upstream federal API is temporarily throttled or unreachable | Wait 2–5 minutes and retry; check upstream availability |
 | `relation "..." does not exist` | Wrong schema on `search_path` or table not yet created | Run `SET search_path = prancer, course, public;` and check `pg_tables` |
 | `column does not exist` | Query and table definitions differ | Compare the SQL against current column definitions in `sql/schema.sql` |
-| `duplicate key value violates unique constraint` | Staging rows conflicted with an existing primary/unique key | Inspect `ON CONFLICT` target columns in `src/refresh.py` against `sql/schema.sql` |
+| `duplicate key value violates unique constraint` | Staging rows conflicted with an existing primary/unique key | Inspect `ON CONFLICT` target columns in the relevant refresh script against `sql/schema.sql` |
 | `0 rows inserted, 0 updated` | Requested date window is already loaded and unchanged | Confirm `MAX(begin_ts)` / `MAX(date)` in target table; no action needed if current |
-| Schema storage approaches **8 GB** | Large nationwide historical loads filled disk quota | Inspect per-table sizes with `pg_total_relation_size` and restrict unnecessary geographic scope |
 
-> **Filesystem note:** While PostgreSQL rolls back all database changes on failure, downloaded `.csv.gz` files in `data/raw/storm_events/` remain cached on disk and will be reused on retry.
 
 ---
 
@@ -309,7 +337,7 @@ WHERE n.nspname = 'prancer'
   python src/report.py --team prancer --state TX --limit 10
   ```
 * **When new data arrive:** NOAA Storm Events (`--source storms`) updates monthly. Because `src/report.py` binds `search_path` dynamically via `--team` and queries base tables directly, rerunning the command immediately incorporates newly loaded events with no intermediate views to rebuild.
-* **Check after each refresh:** Confirm that top-ranked states align with historical catastrophic flood exposure (`TX` `+$47,036.22M` driven by `Severity`, `LA` `+$10,168.16M` driven by `Severity`, `NC` `+$2,889.04M` driven by `Severity`, and `FL` `+$1,039.37M` driven by `Frequency`).
+* **Check after each refresh:** Review the top-ranked states and confirm that the results reflect the current data and geographic scope.
 
 ---
 
@@ -319,7 +347,7 @@ If a refresh fails or data becomes corrupted, follow these steps to restore a cl
 
 ### 1. Identify the failing source
 
-Read the terminal error message to determine whether the failure occurred during HTTP download, CSV/JSON parsing, staging validation (`run_checks()`), or `ON CONFLICT` upserts.
+Read the terminal error message to determine whether the failure occurred during HTTP download, CSV/JSON parsing, staging validation, or `ON CONFLICT` upserts.
 
 ### 2. Verify the database connection
 
@@ -331,41 +359,35 @@ Confirm `mads_f26` is reachable and your target schema tables are intact.
 
 ### 3. Check for partial changes
 
-Every source in `src/refresh.py` executes inside `with conn.transaction():` using `ON COMMIT DROP` temporary tables. If an exception is raised, PostgreSQL automatically rolls back the entire transaction—previously committed rows remain untouched. Verify via the affected table's row count and `ingestion_runs`.
+The individual loaders use `with conn.transaction():` and temporary staging tables. If an exception is raised, PostgreSQL rolls back the failing transaction. Earlier committed years, batches, or sources remain untouched. Verify via the affected table's row count and `ingestion_runs`.
 
 ### 4. Resolve the root cause
 
-* **Invalid source records:** Inspect the offending records in the upstream feed or cached `.csv.gz` file, adjust cleaning/validation logic if needed, and document the decision under Known Issues in `docs/technical-spec.md`.
+* **Invalid source records:** Inspect the offending records in the upstream feed or downloaded archive, adjust cleaning/validation logic if needed, and document the decision under Known Issues in `docs/technical-spec.md`.
 * **Schema mismatch:** Compare live table columns against `sql/schema.sql`.
 * **API or auth failure:** Verify network access, `CENSUS_API_KEY`, or CMU Entra sign-in (`PGUSER`).
 
-### 5. Retry with a dry run
+### 5. Retry the affected source
 
-Test the fix without committing changes:
-
-```bash
-python src/refresh.py --team prancer --source ghcn --start 2025-09-01 --end 2025-10-01 --dry-run
-```
-
-Confirm it prints the staged counts followed by:
-
-```text
-Dry run: undoing all changes.
-```
-
-### 6. Run the actual refresh
-
-Once the dry run succeeds, remove `--dry-run` to commit:
+After resolving the issue, rerun only the failed source, for example:
 
 ```bash
-python src/refresh.py --team prancer --source ghcn --start 2025-09-01 --end 2025-10-01
+python src/refresh.py --source ghcn
 ```
 
-*(If rebuilding an entire schema from scratch after authorization, update `SET ROLE` and `SET search_path` in `sql/schema.sql` to `vixen`, run `psql -d mads_f26 -v ON_ERROR_STOP=1 -f sql/schema.sql`, and reload sources in dependency order: `census` → `ghcn` → `storms` → `hurdat` → `nws`.)*
+For a missed current-year GHCN window, specify the start date directly in `refresh_ghcn.py`. For a historical file that needs to be reprocessed, use bulk mode with `--force` as described above.
+
+### 6. Resume routine refreshes
+
+```bash
+python src/refresh.py --source all
+```
+
+If rebuilding an entire schema from scratch after authorization, follow the initial database setup and historical backfill instructions above. Ensure ingestion history is consistent with the rebuilt tables so historical files are not incorrectly skipped.
 
 ### 7. Verify recovery
 
-Check row counts, date coverage, `ingestion_runs`, `sql/tests/t01`–`t08`, and `python src/report.py --team prancer`. Re-running the same refresh window should yield `0 inserted, 0 updated` with no duplicate records.
+Check row counts, date coverage, `ingestion_runs`, `sql/tests/t01`–`t08`, and `python src/report.py --team prancer`. Re-running unchanged data should yield `0 inserted, 0 updated` with no duplicate records; live sources may have new observations or alerts.
 
 > **Caution:** Do not drop populated tables or rebuild the database without authorization.
 
@@ -380,7 +402,7 @@ Team Prancer designed and built the Climate Risk Analytics system and is respons
 | Component | Original Responsibility (Team Prancer) | Primary Files & Tables |
 |---|---|---|
 | **Database Architecture & Core Ingestion Pipeline** | Ainika Hou | `sql/schema.sql`, `src/refresh.py`, `states`, `counties`, `stations`, `observations`, `nws_observations`, `county_demographics`, `ingestion_runs` |
-| **NOAA Storm Events & Hurricane Ingestion** | Matt Mellors | `src/refresh.py` (`--source storms`, `--source hurdat`), `storm_events`, `hurdat_storms`, `hurdat_tracks` |
+| **NOAA Storm Events & Hurricane Ingestion** | Matt Mellors | `src/refresh_storms.py`, `src/refresh_hurricanes.py`, `storm_events`, `hurdat_storms`, `hurdat_tracks` |
 | **Client SQL Queries & Validation Tests** | Bruck Setu | `sql/queries/q01`–`q08`, `sql/tests/t01`–`t08` |
 | **Client CLI Report, Integration & Documentation** | Team Prancer collectively | `src/report.py`, `README.md`, `docs/technical-spec.md`, `docs/runbook.md` |
 
@@ -388,5 +410,5 @@ Team Prancer designed and built the Climate Risk Analytics system and is respons
 
 **Team Vixen** assumes operational ownership of the Climate Risk Analytics system during the **November 23** knowledge-transfer session.
 
-* **Post-handoff responsibilities:** Running scheduled refreshes (`--team vixen`), monitoring data quality and storage against the 8 GB budget, executing validation tests, and investigating upstream feed failures.
+* **Post-handoff responsibilities:** Running scheduled refreshes after configuring the `vixen` schema, monitoring data quality, executing validation tests, and investigating upstream feed failures.
 * **Design support & documentation:** Team Prancer will walk through architectural choices and known limitations during the November 23 handoff; Team Vixen should use `README.md`, `docs/technical-spec.md`, and this `docs/runbook.md` as the primary operational reference.

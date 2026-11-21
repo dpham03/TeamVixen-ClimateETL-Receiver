@@ -16,6 +16,8 @@ The system integrates the following data sources:
 
 The datasets have different historical coverage and update schedules. County FIPS codes support geographic joins between storm events and Census demographics, while latitude and longitude support spatial analyses involving hurricane tracks and weather stations.
 
+Note: NWS weather observations are restricted to 219 Automated Surface Observing System (ASOS) stations across our eight target states. ASOS stations were selected because they provide reliable, standardized, and continuous weather measurements, making them particularly useful for monitoring short-term weather conditions and severe weather events. To manage database storage while maintaining geographic coverage, the pipeline retrieves observations from the previous three days and retains the most recent observation within each hour for each station. This complements the broader historical coverage provided by GHCN-Daily while limiting unnecessary high-frequency data storage.
+
 The system supports eight client-facing SQL queries investigating flood damage trends, event frequency versus severity, hail seasonality, billion-dollar storm episodes, fatalities relative to property damage, county damage per capita, hurricane wind intensity, and weather-station proximity to hurricanes.
 
 The system does not include proprietary insurance claims, Zillow typical home values, or satellite building-damage imagery. Analyses are limited to the available records and geographic coverage of each source.
