@@ -49,10 +49,7 @@
 > of your most important design decisions: which sources, which region, how many years,
 > what's out of scope, and why.
 
-*(example)* The system loads daily station weather for Pennsylvania and serves queries on
-rainfall and temperature extremes. **Scope:** GHCN-Daily stations in Pennsylvania, 2025
-to the present. Out of scope: other states (not needed for the client's question) and
-snowfall (too often missing in this extract).
+This system provides a property and casualty (P&C) insurer's underwriting and exposure team with an integrated PostgreSQL risk database combining historical storm losses, hurricane tracks, daily station weather, live NWS conditions, and county-level socioeconomic exposure. It supports state-level flood frequency versus severity analysis, seasonal hail exposure pricing, multi-decade billion-dollar storm episode tracking, and hazard under-counting audits comparing property damage against human fatalities.
 
 ## Process flow diagram
 
