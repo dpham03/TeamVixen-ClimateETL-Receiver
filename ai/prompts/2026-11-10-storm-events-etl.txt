@@ -1,0 +1,2 @@
+
+How can I read zipped csv files and how should I complete this without storing the full csv. Although having a straight csv upload may be quicker and less complicated I would like to just read the csv and not have to worry about taking up permanent local disk space for this entire process. This will be more important for the very large zipped ghcn year data that we get for past years as well.

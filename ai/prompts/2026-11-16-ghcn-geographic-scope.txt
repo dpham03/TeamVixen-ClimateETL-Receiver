@@ -1,0 +1,1 @@
+How can we calculate the gb size for a specific table and how might that change is it linear as we add more data? I am working on ghcn and trying to figure out if it is feasible to have a larger scope or just shrink it down to southeast states.

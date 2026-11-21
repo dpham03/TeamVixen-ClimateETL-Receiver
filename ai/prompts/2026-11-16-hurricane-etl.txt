@@ -1,0 +1,1 @@
+Using the same structure that I built in the refresh_storms.py file can you help give me a framework for building a similar refresh_hurricane.py script

@@ -1,0 +1,1 @@
+How does using COPY protect the database from SQL injection. I understand how %s works and making sure the value doesn't get passed to the actual SQL, but if COPY doing a very similar thing?
