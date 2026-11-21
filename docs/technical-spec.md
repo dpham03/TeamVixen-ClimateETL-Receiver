@@ -58,52 +58,43 @@ This system provides a property and casualty (P&C) insurer's underwriting and ex
 
 ```mermaid
 flowchart LR
-    CLI["src/refresh.py<br/>(--team prancer, --source,<br/>--start, --end, --dry-run)"] --> TX
+    CLI["src/refresh.py<br/>(--team, --source,<br/>--start, --end, --dry-run)"] --> TX
 
     subgraph TX["Atomic PostgreSQL Transaction (course_db.connect)"]
-        direction TB
+        direction LR
 
-        subgraph S1["1. --source ghcn (Daily)"]
-            direction LR
-            GHCN_IN["course.observations &amp;<br/>course.stations"] --> GHCN_STG["pg_temp.stage_observations<br/>+ run_checks() &amp; County Match"]
-            GHCN_STG -->|Upsert| T1[("stations,<br/>observations")]
+        subgraph S1["1. Weather Feeds (ghcn &amp; nws)"]
+            direction TB
+            W_IN["course.observations &amp;<br/>NWS API (5 Stations)"] -->|Load into| T1[("stations, observations,<br/>nws_observations")]
         end
 
-        subgraph S2["2. --source nws (Hourly)"]
-            direction LR
-            NWS_IN["NWS REST API<br/>(KPIT, KMIA, KHOU,<br/>KDFW, KORD)"] --> NWS_STG["pg_temp.stage_nws<br/>+ run_checks()"]
-            NWS_STG -->|Upsert| T2[("nws_observations")]
+        subgraph S2["2. Hazard Archives (storms &amp; hurdat)"]
+            direction TB
+            H_IN["NOAA NCEI Bulk CSVs &amp;<br/>NHC HURDAT2 (1980+)"] -->|Load into| T2[("storm_events,<br/>hurdat_storms, hurdat_tracks")]
         end
 
-        subgraph S3["3. --source storms (Monthly)"]
-            direction LR
-            STM_IN["NOAA NCEI Bulk CSVs<br/>(data/raw/storm_events/)"] --> STM_STG["pg_temp.stage_storms<br/>+ Parse K/M/B/T &amp; FIPS"]
-            STM_STG -->|Upsert| T3[("storm_events")]
+        subgraph S3["3. Exposure Data (census)"]
+            direction TB
+            C_IN["U.S. Census ACS 5-Yr API<br/>(CENSUS_API_KEY)"] -->|Load into| T3[("county_demographics")]
         end
 
-        subgraph S4["4. --source hurdat (Seasonal)"]
-            direction LR
-            HUR_IN["NHC HURDAT2 Archive<br/>(1980–Present)"] --> HUR_STG["pg_temp.stage_hurdat_tracks<br/>+ Track &amp; Coord Checks"]
-            HUR_STG -->|Upsert| T4[("hurdat_storms,<br/>hurdat_tracks")]
+        subgraph S4["4. Staging &amp; Validation Gate"]
+            direction TB
+            STG["pg_temp.stage_* (ON COMMIT DROP)<br/>+ run_checks() &amp; FIPS/Coord Bounds"] -->|ON CONFLICT| UPS["Upsert Target Tables"]
         end
 
-        subgraph S5["5. --source census (Annual)"]
-            direction LR
-            CEN_IN["U.S. Census ACS 5-Yr API<br/>(CENSUS_API_KEY)"] --> CEN_STG["pg_temp.stage_census<br/>+ run_checks()"]
-            CEN_STG -->|Upsert| T5[("county_demographics")]
-        end
+        S1 --> S2 --> S3 --> S4
 
         S1 -.-> LOG[("ingestion_runs<br/>(logs source, staged, inserted, updated)")]
         S2 -.-> LOG
         S3 -.-> LOG
         S4 -.-> LOG
-        S5 -.-> LOG
     end
 
     TX --> DRY{"--dry-run?"}
-    DRY -->|Yes| RB["raise psycopg.Rollback()<br/>(All Changes Undone)"]
-    DRY -->|No| CM["Transaction Commit &rarr;<br/>Schema (prancer / vixen)"]
-    CM --> RPT["src/report.py &amp;<br/>sql/queries/q01–q08 + sql/tests/t01–t08"]
+    DRY -->|Yes| RB["psycopg.Rollback()<br/>(No Changes Saved)"]
+    DRY -->|No| CM["Commit &rarr; Schema<br/>(prancer / vixen)"]
+    CM --> RPT["src/report.py &amp;<br/>sql/queries/q01–q08 + tests"]
 ```
 
 ## ER diagram
