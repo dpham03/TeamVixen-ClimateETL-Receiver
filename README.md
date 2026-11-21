@@ -2,62 +2,270 @@
 
 ## What this system is for
 
-This PostgreSQL system supports a property and casualty (P&C) firm's insurance underwriting and exposure team. It helps figure out how much to charge for policies in areas with different weather risks, decide when and where to allocate extra claims adjusters during busy storm seasons, and identify which specific weather patterns lead to the most expensive flood and storm payouts due to damage. To do this, it integrates historical NOAA storm events (1996-2026), NHC HURDAT2 Atlantic hurricane tracks (1980-2025), GHCN-Daily weather station logs, live NWS observations and alerts, and 2024 U.S. Census ACS 5-year county demographics; these are joined on county FIPS codes. It does not cover proprietary policy-level claims, Zillow typical home values, or satellite building-damage imagery.
+This PostgreSQL system supports a property and casualty (P&C) insurer's underwriting and exposure team. It helps evaluate weather-related insurance risks, inform policy pricing, allocate claims adjusters during severe-weather seasons, and identify weather events associated with significant property damage.
+
+The project's primary geographic scope is the **Southeast coastal United States**, covering six states: **Texas, Louisiana, Florida, Georgia, South Carolina, and North Carolina**, rather than the entire continental United States.
+
+The system integrates the following data sources:
+
+- **NOAA Storm Events (1996–2026):** Historical severe-weather events, including flood damage, hail, fatalities, and property losses.
+- **NHC HURDAT2 (1980–2025):** Atlantic hurricane tracks, locations, and maximum recorded wind speeds.
+- **GHCN-Daily:** Daily weather-station observations, including precipitation and temperature.
+- **National Weather Service (NWS):** Current weather observations and alerts.
+- **2024 Census ACS 5-Year Estimates:** County-level population, median income, and housing information.
+
+The datasets have different historical coverage and update schedules. County FIPS codes support geographic joins between storm events and Census demographics, while latitude and longitude support spatial analyses involving hurricane tracks and weather stations.
+
+The system supports eight client-facing SQL queries investigating flood damage trends, event frequency versus severity, hail seasonality, billion-dollar storm episodes, fatalities relative to property damage, county damage per capita, hurricane wind intensity, and weather-station proximity to hurricanes.
+
+The system does not include proprietary insurance claims, Zillow typical home values, or satellite building-damage imagery. Analyses are limited to the available records and geographic coverage of each source.
 
 ## Start here
 
-*The first commands a receiving team should run, in order, with what each one should
-print. Example:*
+These instructions are intended for Team Vixen, which will take over the Climate Risk Analytics system during the November 23 knowledge transfer.
 
-1. `python3.13 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`,
-   then select the `.venv` interpreter in VS Code. The install should end with
-   "Successfully installed …".
-2. `export PGUSER="andrewid@andrew.cmu.edu"` and `python src/course_db.py`. It should
-   print "Connected to mads_f26 as …".
-3. `python src/refresh.py --team prancer --start 2025-09-01 --end 2025-10-01 --dry-run`.
-   It should report how many rows it would insert and update, then undo everything.
-4. `python src/report.py --team prancer --state PA --start 2025-09-01 --end 2025-10-01`.
-   It should print a table of stations.
+### 1. Set up the Python environment
+
+From the repository's root directory, run:
+
+```bash
+python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+In VS Code, select the `.venv` Python interpreter.
+
+### 2. Connect to the course database
+
+The system connects to PostgreSQL using CMU Microsoft Entra authentication through the course-provided `course_db` module. No database password or token should be stored in the repository.
+
+Ensure the course-provided `course_db.py` is available in the `src/` directory.
+
+If necessary, configure your CMU username in the terminal:
+
+```bash
+export PGUSER="YOUR_ANDREW_ID@andrew.cmu.edu"
+```
+
+Test the connection:
+
+```bash
+python src/course_db.py
+```
+
+A successful connection should identify the course database (`mads_f26`).
+
+All Team Prancer database operations should use:
+
+```python
+from course_db import connect
+
+conn = connect(team="prancer")
+```
+
+This connects using the team's database role and schema.
+
+### 3. Verify the database tables
+
+Connect to PostgreSQL and run:
+
+```sql
+SELECT tablename
+FROM pg_tables
+WHERE schemaname = 'prancer'
+ORDER BY tablename;
+```
+
+The primary tables include:
+
+| Table | Description |
+|---|---|
+| `storm_events` | NOAA severe-weather events, damage, and casualties |
+| `hurdat_storms` | Atlantic hurricane identifiers and metadata |
+| `hurdat_tracks` | Hurricane track positions and wind observations |
+| `stations` | GHCN weather-station information |
+| `observations` | Daily weather observations |
+| `nws_observations` | NWS weather-station observations |
+| `nws_alerts` | NWS weather alerts |
+| `county_demographics` | Census county demographic and housing estimates |
+| `ingestion_runs` | Refresh history and ingestion statistics |
+
+### 4. Run a safe refresh
+
+Each data source can be refreshed independently because the sources update on different schedules.
+
+To test the GHCN refresh without saving changes:
+
+```bash
+python src/refresh.py \
+  --team prancer \
+  --source ghcn \
+  --start 2025-09-01 \
+  --end 2025-10-01 \
+  --dry-run
+```
+
+A successful run reports the number of records staged, inserted, and updated, followed by:
+
+```text
+Dry run: undoing all changes.
+```
+
+To refresh GHCN and save changes, remove `--dry-run`:
+
+```bash
+python src/refresh.py \
+  --team prancer \
+  --source ghcn \
+  --start 2025-09-01 \
+  --end 2025-10-01
+```
+
+Additional refresh commands are available for each source:
+
+```bash
+python src/refresh.py --team prancer --source storms --start 2020-01-01 --end 2026-01-01 --dry-run
+python src/refresh.py --team prancer --source hurdat --dry-run
+python src/refresh.py --team prancer --source nws --dry-run
+python src/refresh.py --team prancer --source census --dry-run
+```
+
+These commands use the same transaction and logging framework. Successful execution of one source does not guarantee that the others are configured or populated correctly.
+
+The refresh pipeline is designed to support safe reruns, transactional rollback on failure, and ingestion logging. Refer to `docs/runbook.md` for source-specific procedures and troubleshooting.
+
+### 5. Run the client SQL queries
+
+The eight client-facing SQL queries are located in `sql/queries/`.
+
+| Query | Client question |
+|---|---|
+| `q01-flood-damage-by-year.sql` | How does reported flood damage vary by state and year? |
+| `q02-flood-frequency-severity.sql` | Is flood damage associated with event frequency or average severity? |
+| `q03-hail-seasonality.sql` | During which months is hail exposure greatest across the target states? |
+| `q04-billion-dollar-episodes.sql` | How many NOAA storm episodes exceeded $1 billion in reported property damage per decade? |
+| `q05-fatalities-vs-damage.sql` | Which storm types have high fatalities relative to recorded property damage? |
+| `q06-county-damage-per-capita.sql` | Which counties have the greatest reported storm damage per resident? |
+| `q07-hurricane-peak-winds.sql` | Which Atlantic storms recorded the strongest winds within the Southeast coastal region? |
+| `q08-hurricane-station-proximity.sql` | Which weather stations were within 50 kilometers of hurricane track points? |
+
+The queries use SQL aggregation, joins, window functions, and latitude/longitude spatial filtering.
+
+Results depend on the loaded data. In particular, the billion-dollar episode analysis uses nominal reported NOAA property damage, not NOAA's official inflation-adjusted billion-dollar disaster classification.
+
+### 6. Run the SQL validation tests
+
+Each client query has a corresponding validation test in `sql/tests/`.
+
+The tests are named `t01` through `t08`, corresponding to queries `q01` through `q08`.
+
+**A passing test returns zero rows.** A nonempty result indicates a condition that requires investigation.
+
+All eight client queries were executed successfully against the Team Prancer database, and their corresponding tests returned zero rows during November 20 validation.
+
+These tests primarily check source-data consistency and basic mathematical properties. They do not independently verify every aggregate or guarantee that all analytical results are correct.
+
+Additional `t00` table-validation scripts are included in the repository. These are separate from the eight client-query tests and require further reconciliation with the current database schema.
+
+### 7. Run the Python reporting command
+
+The repository includes `src/report.py` for parameterized database reporting.
+
+Use:
+
+```bash
+python src/report.py --help
+```
+
+to inspect its available arguments.
+
+The reporting command should be verified against the current Prancer schema before relying on its results. Earlier versions used the course's Pennsylvania weather-station example, which is not one of the primary Southeast climate-risk analyses.
 
 ## What's in the handoff pack
 
 | Piece | Where |
 |---|---|
-| **README:** where to start | this file |
-| **Technical specification:** overview and scope, process-flow and ER diagrams, sources, every table, program, and query, design decisions, known issues | `docs/technical-spec.md` |
-| **Runbook:** connect, refresh, check, recover, and use and maintain the reports | `docs/runbook.md` |
-| **The code:** schema, refresh, client queries and their tests, Python command, report, Python packages | `sql/schema.sql`, `src/refresh.py`, `sql/queries/`, `sql/tests/`, `src/report.py`, `reports/report.qmd`, `requirements.txt` |
-| **AI log** | `ai/AI-LOG.md` |
-| **Knowledge transfer plan:** topics, required or not, priority, complexity, prerequisites, estimated times | `docs/kt-log.md` |
+| **README:** Project overview and startup instructions | `README.md` |
+| **Technical specification:** Architecture, geographic scope, diagrams, sources, tables, programs, queries, assumptions, and design decisions | `docs/technical-spec.md` |
+| **Runbook:** Connection procedures, source refresh instructions, validation, troubleshooting, and recovery | `docs/runbook.md` |
+| **Database schema:** Table definitions, constraints, and indexes | `sql/schema.sql` |
+| **Refresh pipeline:** Source-specific ingestion and safe refresh operations | `src/refresh.py` |
+| **Client queries:** Eight insurance risk analyses | `sql/queries/` |
+| **SQL tests:** Corresponding query validation and additional database checks | `sql/tests/` |
+| **Python reporting:** Parameterized database reporting | `src/report.py` |
+| **Dependencies:** Python packages required by the system | `requirements.txt` |
+| **AI log:** AI-assisted contributions and verification evidence | `ai/AI-LOG.md` |
 
-`docs/kt-log.md` is the knowledge transfer log: plan it by the `handoff` tag on November
-20, and fill it in during the knowledge transfer on November 23.
+The knowledge transfer takes place on **November 23, 2026**, when Team Prancer hands its Climate Risk Analytics system to Team Vixen.
 
-`src/course_db.py` connects to the course server with your CMU sign-in; don't edit it.
-`receiver/` stays empty until the handoff; the receiving team works there.
+The receiving team completes `docs/kt-log.md` during the knowledge-transfer session.
+
+The final Part II technical report and visualizations are due **December 1, 2026** and are not required in the November 20 handoff package.
 
 ## Rules for this repository
 
-- **No credentials, ever:** no passwords, tokens, or connection strings with secrets,
-  including in old commits. `course_db.py` signs in with your CMU account, so you never
-  need one.
-- Raw downloads go in `data/raw/`, which Git ignores. The refresh step must be able to
-  fetch them again.
-- **Work as your team.** Before you create anything, switch to your team role. Tables
-  created without it belong to you personally and won't transfer at the handoff.
+### No credentials in the repository
 
-  ```sql
-  SET ROLE prancer_write;
-  SET search_path = prancer, course, public;
-  ```
+Do not commit passwords, access tokens, API keys, or connection strings containing secrets.
 
-  In Python, `course_db.connect(team="prancer")` does both.
-- **Name everything in lowercase snake_case**, such as `begin_yearmonth` or
-  `ev_level2_evse_num`. PostgreSQL lowercases names that aren't in double quotes, so a
-  column created as `BEGIN_YEARMONTH` or `EV Level2 EVSE Num` can only be queried with
-  the double quotes, every time. `df.to_sql()` keeps a file's headers exactly as they
-  are, so clean them before loading:
+The course-provided `course_db.py` uses CMU authentication to connect to the database.
 
-  ```python
-  df.columns = df.columns.str.lower().str.replace(r"[^a-z0-9]+", "_", regex=True)
-  ```
+### Store raw downloads locally
+
+Raw source files belong in `data/raw/`, which is excluded from Git tracking.
+
+The refresh process should be able to obtain necessary source data again.
+
+### Work under the Team Prancer database role
+
+For direct SQL sessions, use:
+
+```sql
+SET ROLE prancer_write;
+SET search_path = prancer, course, public;
+```
+
+In Python:
+
+```python
+from course_db import connect
+
+conn = connect(team="prancer")
+```
+
+### Use consistent naming conventions
+
+Tables and columns should use lowercase `snake_case` names.
+
+Examples include:
+
+- `storm_events`
+- `county_fips`
+- `damage_property_usd`
+- `begin_ts`
+
+Clean imported column names when necessary:
+
+```python
+df.columns = df.columns.str.lower().str.replace(
+    r"[^a-z0-9]+", "_", regex=True
+)
+```
+
+### Follow the defined geographic scope
+
+Insurance analyses primarily focus on Texas, Louisiana, Florida, Georgia, South Carolina, and North Carolina.
+
+State FIPS codes are:
+
+| State | FIPS |
+|---|---|
+| Texas | 48 |
+| Louisiana | 22 |
+| Florida | 12 |
+| Georgia | 13 |
+| South Carolina | 45 |
+| North Carolina | 37 |
+
+Hurricane tracks and other source datasets may extend beyond the target region, depending on their original geographic coverage. Client queries apply the appropriate regional filters.
