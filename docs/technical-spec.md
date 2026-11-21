@@ -255,7 +255,7 @@ erDiagram
 | GHCN-Daily | Shared server tables `course.stations` & `course.observations` (from NOAA NCEI) | Course server access via `course_db` | Daily (archive finalized 45–60 days after month-end) | `stations`, `observations` |
 | NWS Web API | National Weather Service, <https://weather.gov> | Public GeoJSON API; requires `User-Agent` and `Accept: application/geo+json`; max 500 rows/request; 7-day rolling retention | Hourly / Live | `nws_observations`, `nws_alerts` |
 | Census ACS 5-Year & Geocoder | U.S. Census Bureau, <https://census.gov> & <https://census.gov> | Free `CENSUS_API_KEY` in local environment (`os.environ["CENSUS_API_KEY"]`); geocoder requires no key | Annual (ACS 5-year) | `county_demographics`, `storm_events.county_fips` |
-| Shared Course Reference | `course.counties` on `mads_f26` | Read-only (`SELECT`) on course server | Static | Spatial lookup for `county_fips` |
+| Shared Course Reference | `course.counties` on `mads_f26` | Copied from server | Static | Spatial lookup for `county_fips` |
 
 - **Runtime environment:** Python 3.13 with packages listed in `requirements.txt` (`psycopg`, `requests`, etc.) and PostgreSQL on `mads_f26`.
 
