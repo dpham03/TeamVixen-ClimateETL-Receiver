@@ -27,8 +27,8 @@
 
 | Author | Reason for revision | Version | Date | Git tag or commit |
 |---|---|---|---|---|
-| | Initial authoring | 1.0 | | `handoff` |
-| | | | | |
+| Team Prancer | Initial authoring | 1.0 | 11/17/2026 | `initial commit` |
+| Team Prancer | Code updates and query documentation | 1.1 | 11/20/2026 | `pfd-erd-scope` |
 
 ## Objects list
 
