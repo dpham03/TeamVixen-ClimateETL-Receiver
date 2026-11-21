@@ -1,0 +1,11 @@
+Review the eight SQL analytical queries in the Team Prancer repository 
+for valid PostgreSQL syntax, correct joins, aggregations, and logical 
+consistency. Identify potential shortcomings and recommend corrections 
+where appropriate.
+
+Review the eight corresponding SQL validation tests to confirm that they 
+use valid PostgreSQL syntax and follow the required convention of 
+returning zero rows when no violations are detected. Evaluate whether 
+each test meaningfully validates its corresponding analytical query, 
+identify weaknesses in test coverage, and recommend improvements while 
+preserving the existing query and test structure where possible.
