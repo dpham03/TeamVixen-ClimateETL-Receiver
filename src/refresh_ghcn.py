@@ -191,7 +191,7 @@ def load_stations(conn, stations):
 
     print(f"Processed {len(rows):,} stations")
 
-
+# staging table
 def load_stage(conn, df):
     with conn.cursor() as cur:
 

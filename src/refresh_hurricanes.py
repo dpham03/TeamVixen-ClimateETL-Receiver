@@ -68,7 +68,7 @@ def transform_hurricanes(content):
 
     return storms, tracks[TRACK_COLUMNS]
 
-
+# staging table
 def load_stage(conn, storms, tracks):
     """Load transformed storms and tracks into temporary staging tables."""
     for table, columns, df in [

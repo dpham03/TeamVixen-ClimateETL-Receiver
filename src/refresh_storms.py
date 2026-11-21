@@ -198,7 +198,7 @@ def transform_storms(df):
 
     return df
 
-
+# staging table
 def load_stage(conn, df):
     """Load transformed storm events into a temporary staging table."""
 
