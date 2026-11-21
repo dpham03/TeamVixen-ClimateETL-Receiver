@@ -10,18 +10,18 @@
 
 | | |
 |---|---|
-| **Document name** | TS_[team]_[system], e.g. TS_dasher_storm-exposure |
-| **Authors** | |
-| **Created on** | |
-| **Repository** | [GitHub link] |
+| **Document name** | `TS_prancer_climate-risk-underwriting` |
+| **Authors** | Team Prancer |
+| **Created on** | 2026-11-10 |
+| **Repository** | `<https://github.com/mrmellors/climate-etl-prancer>` |
 | **Knowledge transfer log** | [`docs/kt-log.md`](kt-log.md) |
 
 ## Sign-offs
 
 | Role | Name | Date |
 |---|---|---|
-| Builders (development) | | |
-| Receivers (taking ownership) | | |
+| Builders (development) | Team Prancer | November 20, 2026 |
+| Receivers (taking ownership) | Team Vixen | November 23, 2026 |
 
 ## Revision history
 
@@ -61,13 +61,52 @@ snowfall (too often missing in this extract).
 
 ```mermaid
 flowchart LR
-    S[Source files or APIs] --> R[data/raw/]
-    R --> T[(Staging table)]
-    T --> V{Validation checks}
-    V -- pass --> D[(Trusted tables)]
-    V -- fail --> X[Stop and roll back]
-    D --> Q[sql/queries/]
-    D --> P[reports/]
+    CLI["src/refresh.py<br/>(--team prancer, --source,<br/>--start, --end, --dry-run)"] --> TX
+
+    subgraph TX["Atomic PostgreSQL Transaction (course_db.connect)"]
+        direction LR
+
+        subgraph S1["1. --source ghcn (Daily)"]
+            direction TB
+            GHCN_IN["course.observations &amp;<br/>course.stations"] --> GHCN_STG["pg_temp.stage_observations<br/>+ run_checks() &amp; County Spatial Match"]
+            GHCN_STG -->|ON CONFLICT Upsert| T1[("stations,<br/>observations")]
+        end
+
+        subgraph S2["2. --source nws (Hourly)"]
+            direction TB
+            NWS_IN["NWS REST API<br/>(KPIT, KMIA, KHOU,<br/>KDFW, KORD)"] --> NWS_STG["pg_temp.stage_nws<br/>+ run_checks()"]
+            NWS_STG -->|ON CONFLICT Upsert| T2[("nws_observations")]
+        end
+
+        subgraph S3["3. --source storms (Monthly)"]
+            direction TB
+            STM_IN["NOAA NCEI Bulk CSVs<br/>(data/raw/storm_events/)"] --> STM_STG["pg_temp.stage_storms<br/>+ Parse K/M/B/T &amp; FIPS"]
+            STM_STG -->|ON CONFLICT Upsert| T3[("storm_events")]
+        end
+
+        subgraph S4["4. --source hurdat (Seasonal)"]
+            direction TB
+            HUR_IN["NHC HURDAT2 Archive<br/>(1980–Present)"] --> HUR_STG["pg_temp.stage_hurdat_tracks<br/>+ Track Count &amp; Lat/Lon Checks"]
+            HUR_STG -->|ON CONFLICT Upsert| T4[("hurdat_storms,<br/>hurdat_tracks")]
+        end
+
+        subgraph S5["5. --source census (Annual)"]
+            direction TB
+            CEN_IN["U.S. Census ACS 5-Yr API<br/>(CENSUS_API_KEY)"] --> CEN_STG["pg_temp.stage_census<br/>+ run_checks()"]
+            CEN_STG -->|ON CONFLICT Upsert| T5[("county_demographics")]
+        end
+
+        S1 -.-> LOG[("ingestion_runs<br/>(logs source, rows_staged,<br/>rows_inserted, rows_updated)")]
+        S2 -.-> LOG
+        S3 -.-> LOG
+        S4 -.-> LOG
+        S5 -.-> LOG
+    end
+
+    TX --> DRY{"--dry-run?"}
+    DRY -->|Yes| RB["raise psycopg.Rollback()<br/>(All Changes Undone)"]
+    DRY -->|No| CM["Transaction Commit &rarr;<br/>PostgreSQL Schema (prancer / vixen)"]
+    CM --> RPT["src/report.py &amp;<br/>sql/queries/q01–q08 + sql/tests/t01–t08"]
 ```
 
 ## ER diagram
@@ -78,15 +117,83 @@ flowchart LR
 
 ```mermaid
 erDiagram
-    STATIONS ||--o{ OBSERVATIONS : "has"
+    COURSE_COUNTIES {
+        char_5 county_fips PK "Shared reference table"
+        char_2 state
+        text name
+        numeric land_sq_mi
+        double lat
+        double lon
+    }
+
+    COUNTY_DEMOGRAPHICS {
+        char_5 county_fips PK "Matches course.counties"
+        text county_name
+        int acs_year
+        int population
+        numeric median_income
+        numeric median_home_value
+        int housing_units
+    }
+
+    STORM_EVENTS {
+        bigint event_id PK
+        bigint episode_id
+        char_2 state_fips
+        char_2 state_abbr
+        text state_name
+        char_1 cz_type
+        varchar_3 cz_fips
+        char_5 county_fips "Matches course.counties (nullable)"
+        text event_type
+        timestamptz begin_ts
+        timestamptz end_ts
+        int injuries_direct
+        int injuries_indirect
+        int deaths_direct
+        int deaths_indirect
+        numeric damage_property_usd
+        numeric damage_crops_usd
+        numeric magnitude
+        text magnitude_type
+        double begin_lat
+        double begin_lon
+        double end_lat
+        double end_lon
+        text fips_source
+    }
+
+    HURDAT_STORMS {
+        text storm_id PK
+        text storm_name
+        char_2 basin
+        int cyclone_number
+        int season_year
+        int num_track_points
+    }
+
+    HURDAT_TRACKS {
+        bigint track_id PK
+        text storm_id FK
+        timestamptz observed_at
+        char_1 record_identifier
+        text system_status
+        double lat
+        double lon
+        int max_wind_kt
+        int min_pressure_mb
+    }
+
     STATIONS {
         text station_id PK
         text name
-        char state
-        float lat
-        float lon
+        char_2 state
+        char_5 county_fips "Nearest course.counties"
+        double lat
+        double lon
         numeric elevation
     }
+
     OBSERVATIONS {
         bigint obs_id PK
         text station_id FK
@@ -95,6 +202,50 @@ erDiagram
         numeric tmin
         numeric precip
     }
+
+    NWS_OBSERVATIONS {
+        text station_id PK
+        timestamptz observed_at PK
+        double lat
+        double lon
+        numeric temperature_c
+        numeric dewpoint_c
+        numeric wind_speed_kmh
+        numeric wind_gust_kmh
+        numeric barometric_pressure_pa
+        numeric relative_humidity_pct
+        text text_description
+    }
+
+    NWS_ALERTS {
+        text alert_id PK
+        text event
+        text severity
+        text certainty
+        text urgency
+        text area_desc
+        char_5_arr county_fips "Array of 5-digit FIPS"
+        timestamptz effective_at
+        timestamptz expires_at
+        text headline
+    }
+
+    INGESTION_RUNS {
+        bigint run_id PK
+        timestamptz started_at
+        text source
+        int rows_staged
+        int rows_inserted
+        int rows_updated
+    }
+
+    COURSE_COUNTIES ||--o| COUNTY_DEMOGRAPHICS : "enriches (1:1)"
+    COURSE_COUNTIES ||--o{ STORM_EVENTS : "locates event (1:N)"
+    COURSE_COUNTIES ||--o{ STATIONS : "locates station (1:N)"
+    COURSE_COUNTIES }o..o{ NWS_ALERTS : "targets via county_fips[] (M:N)"
+    HURDAT_STORMS ||--|{ HURDAT_TRACKS : "contains fixes (1:N)"
+    STATIONS ||--o{ OBSERVATIONS : "records daily (1:N)"
+    HURDAT_TRACKS }o..o{ STATIONS : "spatial proximity (lat/lon)"
 ```
 
 ## Assumptions
@@ -105,20 +256,23 @@ erDiagram
 
 ## Dependencies
 
-> Every source the system loads, plus anything else it needs to run.
-
 | Source | Where it comes from | Access and terms | Updates | Tables it feeds |
 |---|---|---|---|---|
-| GHCN-Daily (example) | NOAA NCEI, <https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-daily> | Public; no account needed | Daily, with late corrections | `stations`, `observations` |
+| NOAA Storm Events | NOAA NCEI, <https://noaa.gov> | Public bulk `.csv.gz` files; no key needed | Monthly (with ~60–90 day reporting lag) | `storm_events` |
+| NHC HURDAT2 | National Hurricane Center, <https://noaa.gov> | Public text file; requires `User-Agent` header | Seasonal (post-storm reanalysis) | `hurdat_storms`, `hurdat_tracks` |
+| GHCN-Daily | Shared server tables `course.stations` & `course.observations` (from NOAA NCEI) | Course server access via `course_db` | Daily (archive finalized 45–60 days after month-end) | `stations`, `observations` |
+| NWS Web API | National Weather Service, <https://weather.gov> | Public GeoJSON API; requires `User-Agent` and `Accept: application/geo+json`; max 500 rows/request; 7-day rolling retention | Hourly / Live | `nws_observations`, `nws_alerts` |
+| Census ACS 5-Year & Geocoder | U.S. Census Bureau, <https://census.gov> & <https://census.gov> | Free `CENSUS_API_KEY` in local environment (`os.environ["CENSUS_API_KEY"]`); geocoder requires no key | Annual (ACS 5-year) | `county_demographics`, `storm_events.county_fips` |
+| Shared Course Reference | `course.counties` on `mads_f26` | Read-only (`SELECT`) on course server | Static | Spatial lookup for `county_fips` |
 
-- *(example)* Python 3.13 and the packages in `requirements.txt`; the course server `mads_f26`.
+- **Runtime environment:** Python 3.13 with packages listed in `requirements.txt` (`psycopg`, `requests`, etc.) and PostgreSQL on `mads_f26`.
 
 ## Roles and authorizations
 
 | Role | Who holds it | Can do |
 |---|---|---|
-| `<team>_write` | The builders until Nov 23, then the receivers | Create and change tables in the team schema |
-| `<team>_read` | The builders after Nov 23, and the TA | Read the team schema |
+| `prancer_write` | Team Prancer until Nov 23, then Team Vixen | Create, alter, insert, update, and drop objects in `prancer` |
+| `prancer_read` | Team Prancer after Nov 23, plus instructional staff | `SELECT` from all tables in `prancer` |
 
 ## Design decisions
 
