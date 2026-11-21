@@ -4,8 +4,39 @@ import requests
 
 from course_db import connect
 
-TEAM = "prancer"                                                       
-STATIONS = ["KPIT", "KMIA", "KHOU", "KDFW", "KORD"]
+TEAM = "prancer"
+# Internet responses of airport stations in southern states
+STATIONS = [
+    # Texas (TX)
+    "KDFW",  # Dallas Fort Worth International Airport (Dallas/Fort Worth, TX)
+    "KIAH",  # George Bush Intercontinental Airport (Houston, TX)
+    "KAUS",  # Austin-Bergstrom International Airport (Austin, TX)
+    "KSAT",  # San Antonio International Airport (San Antonio, TX)
+
+    # Louisiana (LA)
+    "KMSY",  # Louis Armstrong New Orleans International Airport (New Orleans, LA)
+    "KBTR",  # Baton Rouge Metropolitan Airport (Baton Rouge, LA)
+    "KSHV",  # Shreveport Regional Airport (Shreveport, LA)
+
+    # Florida (FL)
+    "KMIA",  # Miami International Airport (Miami, FL)
+    "KMCO",  # Orlando International Airport (Orlando, FL)
+    "KTPA",  # Tampa International Airport (Tampa, FL)
+    "KJAX",  # Jacksonville International Airport (Jacksonville, FL)
+
+    # Georgia (GA)
+    "KATL",  # Hartsfield-Jackson Atlanta International Airport (Atlanta, GA)
+    "KSAV",  # Savannah/Hilton Head International Airport (Savannah, GA)
+
+    # North Carolina (NC)
+    "KCLT",  # Charlotte Douglas International Airport (Charlotte, NC)
+    "KRDU",  # Raleigh-Durham International Airport (Raleigh/Durham, NC)
+
+    # South Carolina (SC)
+    "KCHS",  # Charleston International Airport (Charleston, SC)
+    "KCAE",  # Columbia Metropolitan Airport (Columbia, SC)
+    "KGSP",  # Greenville-Spartanburg International Airport (Greer, SC)
+]
 HEADERS = {
     "User-Agent": "36-614 project (ahou@andrew.cmu.edu)",              
     "Accept": "application/geo+json",
