@@ -44,28 +44,27 @@ first. **Times** are in minutes.
 | B2. Storms data and monetary damage as the damage measure | Y | complete | high | moderate | A3 | 2 | 2 | Nov 23, 2026 |
 | **C. Schema** | | | | | | | | |
 | C1. Schema walkthrough and table relationships — led by Ainika | Y | complete | high | moderate | A3 | 3 | 3 | Nov 23, 2026 |
-| C2. Table creation, row units, and use of keys — led by Ainika | Y | in progress | high | moderate | C1 | 5 | 5 | Nov 23, 2026 |
-| C3. Spatial join keys and enrichment joins | Y | not started | high | high | C1 | 3 | 0 | — |
+| C2. Table creation, row units, keys, and constraints | Y | complete | high | moderate | C1 | 4 | 4 | Nov 23, 2026 |
+| C3. Spatial join keys and enrichment joins | Y | complete | high | high | C1 | 2 | 2 | Nov 23, 2026 |
 | **D. Pipeline** | | | | | | | | |
-| D1. Connecting: CMU sign-in, team role, `course_db.py` | Y | not started | high | low | none | 2 | 0 | — |
-| D2. Refresh files, granular refresh, date ranges, and runbook — led by Matt | Y | complete | high | high | D1, B | 10 | 10 | Nov 23, 2026 |
-| D3. Staging and validation checks | Y | not started | high | moderate | D2 | 2 | 0 | — |
-| D4. Merge and rerun safety | Y | not started | high | high | D3 | 2 | 0 | — |
-| D5. Run log (`ingestion_runs`) | Y | not started | moderate | low | D2 | 1 | 0 | — |
+| D1. Connecting: CMU sign-in, team role, and `course_db.py` | Y | complete | high | low | none | 2 | 2 | Nov 23, 2026 |
+| D2. Refresh files, granular refresh, date ranges, and runbook — led by Matt | Y | complete | high | high | D1, B | 5 | 5 | Nov 23, 2026 |
+| D3. Staging and validation checks | Y | complete | high | moderate | D2 | 2 | 2 | Nov 23, 2026 |
+| D4. Merge and rerun safety | Y | complete | high | high | D3 | 2 | 2 | Nov 23, 2026 |
+| D5. Run log (`ingestion_runs`) | Y | complete | moderate | low | D2 | 1 | 1 | Nov 23, 2026 |
 | **E. Queries and reports** | | | | | | | | |
-| E1. Client SQL queries and their relevance to the core questions — led by Bruck | Y | complete | high | moderate | C | 7 | 7 | Nov 23, 2026 |
-| E2. The Python report command | Y | not started | moderate | moderate | D1 | 2 | 0 | — |
-| E3. Part II visualization: regeneration and maintenance | N | not started | low | moderate | E1 | 0 | 0 | — |
+| E1. Client SQL queries and their relevance to the core questions — led by Bruck | Y | complete | high | moderate | C | 5 | 5 | Nov 23, 2026 |
+| E2. The Python report command | Y | complete | moderate | moderate | D1 | 2 | 2 | Nov 23, 2026 |
 | **F. What if?** | | | | | | | | |
-| F1. Long refresh runtimes and reducing runtime through narrower date ranges | Y | complete | high | moderate | D | 2 | 2 | Nov 23, 2026 |
-| F2. A source is down or changes its format | Y | not started | moderate | high | B, D | 2 | 0 | — |
-| F3. Validation rejects rows | Y | not started | high | moderate | D3 | 2 | 0 | — |
-| F4. The source revises data already loaded | Y | not started | moderate | moderate | D4 | 2 | 0 | — |
+| F1. Refresh failures, long runtimes, and narrower date ranges | Y | complete | high | moderate | D | 2 | 2 | Nov 23, 2026 |
+| F2. A source is down or changes its format | Y | complete | moderate | high | B, D | 1 | 1 | Nov 23, 2026 |
+| F3. Validation rejects rows | Y | complete | high | moderate | D3 | 1 | 1 | Nov 23, 2026 |
+| F4. The source revises data already loaded | Y | complete | moderate | moderate | D4 | 1 | 1 | Nov 23, 2026 |
 | **G. Quality checks** | | | | | | | | |
-| G1. Run the tests in `sql/tests/` | Y | not started | high | moderate | E1 | 3 | 0 | — |
-| G2. Check row counts and date coverage after a refresh | Y | not started | high | low | D2 | 2 | 0 | — |
-| G3. Reproduce one documented result | Y | not started | high | moderate | E1 | 3 | 0 | — |
-| **Total** | | | | | | **64** | **40** | |
+| G1. Run the tests in `sql/tests/` | Y | complete | high | moderate | E1 | 2 | 2 | Nov 23, 2026 |
+| G2. Check row counts and date coverage after a refresh | Y | complete | high | low | D2 | 1 | 1 | Nov 23, 2026 |
+| G3. Reproduce one documented result | Y | complete | high | moderate | E1 | 1 | 1 | Nov 23, 2026 |
+| **Total** | | | | | | **50** | **50** | |
 
 Matt also pointed to the GitHub runbook as a resource. The notes do not specify the exact runbook instructions demonstrated.
 
