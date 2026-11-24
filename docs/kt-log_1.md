@@ -10,13 +10,13 @@
 
 | | |
 |---|---|
-| **Builders** | Team Prancer (Ainika Hou, Matthew Mellors, Bruck Setu; remaining membership not recorded) |
-| **Receivers** | Team Vixen (full membership by team not recorded) |
+| **Builders** | Team Prancer (Ainika Hou, Matthew Mellors, Bruck Setu) |
+| **Receivers** | Team Vixen (Brendan Lin, Sukwoo Kwon, Dung Pham) |
 | **System** | Climate Risk (Team Prancer) |
 | **Technical specification** | [`docs/technical-spec.md`](technical-spec.md) |
-| **Last updated, and by whom** | Nov 24, 2026 — compiled from Nov 23 session notes; reviewer pending |
+| **Last updated, and by whom** | Nov 24, 2026 — compiled from Nov 23 session notes - Dung Pham (Vixen); reviewer pending |
 
-Session: Nov 23, 2026, starting at 9:39 am. All members of both teams present. Attendees: Ainika Hou, Brendan Lin, Bruck Setu, Dung Pham, Jamie McGovern, Matthew Mellors, Suk Woo Kwon.
+Session: Nov 23, 2026, starting at 9:39 am. All members of both teams present. Attendees: Ainika Hou, Brendan Lin, Bruck Setu, Dung Pham, Matthew Mellors, Suk Woo Kwon.
 
 ## Sign-offs
 
