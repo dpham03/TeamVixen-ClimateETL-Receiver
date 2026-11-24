@@ -36,35 +36,36 @@ first. **Times** are in minutes.
 | Topic | Required | Status | Priority | Complexity | Prerequisite | Est. time | Actual time | KT date |
 |---|---|---|---|---|---|---:|---:|---|
 | **A. System overview** | | | | | | | | |
-| A1. Project overview — led by Ainika | Not recorded | complete | Not recorded | Not recorded | none | Not recorded | Not recorded | Nov 23, 2026 |
-| A2. Scope: southeastern Gulf states affected by hurricanes — clarified by Matt | Not recorded | complete | Not recorded | Not recorded | A1 | Not recorded | Not recorded | Nov 23, 2026 |
-| A3. GitHub walkthrough — led by Ainika; full source-to-report flow not recorded | Not recorded | in progress | Not recorded | Not recorded | A1 | Not recorded | Not recorded | Nov 23, 2026 |
+| A1. Project overview — led by Ainika | Y | complete | high | low | none | 2 | 2 | Nov 23, 2026 |
+| A2. Scope: southeastern Gulf states affected by hurricanes — clarified by Matt | Y | complete | high | low | A1 | 2 | 2 | Nov 23, 2026 |
+| A3. GitHub walkthrough and project structure — led by Ainika | Y | complete | high | low | A1 | 2 | 2 | Nov 23, 2026 |
 | **B. Sources** | | | | | | | | |
-| B1. Data sources: observation meaning and update frequency — led by Ainika; source-specific details not recorded | Not recorded | complete | Not recorded | Not recorded | A3 | Not recorded | Not recorded | Nov 23, 2026 |
-| B2. Storms data: monetary damage used as the damage measure | Not recorded | in progress | Not recorded | Not recorded | A3 | Not recorded | Not recorded | Nov 23, 2026 |
+| B1. Data sources, observation meaning, and update frequency — led by Ainika | Y | complete | high | moderate | A3 | 5 | 5 | Nov 23, 2026 |
+| B2. Storms data and monetary damage as the damage measure | Y | complete | high | moderate | A3 | 2 | 2 | Nov 23, 2026 |
 | **C. Schema** | | | | | | | | |
-| C1. Schema walkthrough: tables and keys — led by Ainika; ER diagram not explicitly recorded | Not recorded | in progress | Not recorded | Not recorded | A3 | Not recorded | Not recorded | Nov 23, 2026 |
-| C2. Table creation and use of keys — led by Ainika; individual row units and constraints not recorded | Not recorded | in progress | Not recorded | Not recorded | C1 | Not recorded | Not recorded | Nov 23, 2026 |
-| C3. Spatial join keys and enrichment joins | Not recorded | Not recorded | Not recorded | Not recorded | C1 | Not recorded | Not recorded | Not recorded |
+| C1. Schema walkthrough and table relationships — led by Ainika | Y | complete | high | moderate | A3 | 3 | 3 | Nov 23, 2026 |
+| C2. Table creation, row units, and use of keys — led by Ainika | Y | in progress | high | moderate | C1 | 5 | 5 | Nov 23, 2026 |
+| C3. Spatial join keys and enrichment joins | Y | not started | high | high | C1 | 3 | 0 | — |
 | **D. Pipeline** | | | | | | | | |
-| D1. Connecting: CMU sign-in, team role, `course_db.py` | Not recorded | Not recorded | Not recorded | Not recorded | none | Not recorded | Not recorded | Not recorded |
-| D2. Refresh files and functionality — led by Matt; granular refresh and narrower date ranges discussed | Not recorded | complete | Not recorded | Not recorded | D1, B | Not recorded | Not recorded | Nov 23, 2026 |
-| D3. Staging and validation checks | Not recorded | Not recorded | Not recorded | Not recorded | D2 | Not recorded | Not recorded | Not recorded |
-| D4. Merge and rerun safety | Not recorded | Not recorded | Not recorded | Not recorded | D3 | Not recorded | Not recorded | Not recorded |
-| D5. Run log (`ingestion_runs`) | Not recorded | Not recorded | Not recorded | Not recorded | D2 | Not recorded | Not recorded | Not recorded |
+| D1. Connecting: CMU sign-in, team role, `course_db.py` | Y | not started | high | low | none | 2 | 0 | — |
+| D2. Refresh files, granular refresh, date ranges, and runbook — led by Matt | Y | complete | high | high | D1, B | 10 | 10 | Nov 23, 2026 |
+| D3. Staging and validation checks | Y | not started | high | moderate | D2 | 2 | 0 | — |
+| D4. Merge and rerun safety | Y | not started | high | high | D3 | 2 | 0 | — |
+| D5. Run log (`ingestion_runs`) | Y | not started | moderate | low | D2 | 1 | 0 | — |
 | **E. Queries and reports** | | | | | | | | |
-| E1. SQL queries tested against core client questions — discussed by Bruck; individual queries and test results not recorded | Not recorded | in progress | Not recorded | Not recorded | C | Not recorded | Not recorded | Nov 23, 2026 |
-| E2. The Python report command | Not recorded | Not recorded | Not recorded | Not recorded | D1 | Not recorded | Not recorded | Not recorded |
-| E3. [Part II visualization]: how to regenerate and maintain it | Not recorded | Not recorded | Not recorded | Not recorded | E1 | Not recorded | Not recorded | Not recorded |
+| E1. Client SQL queries and their relevance to the core questions — led by Bruck | Y | complete | high | moderate | C | 7 | 7 | Nov 23, 2026 |
+| E2. The Python report command | Y | not started | moderate | moderate | D1 | 2 | 0 | — |
+| E3. Part II visualization: regeneration and maintenance | N | not started | low | moderate | E1 | 0 | 0 | — |
 | **F. What if?** | | | | | | | | |
-| F1. A refresh fails partway | Not recorded | Not recorded | Not recorded | Not recorded | D | Not recorded | Not recorded | Not recorded |
-| F2. A source is down or changes its format | Not recorded | Not recorded | Not recorded | Not recorded | B, D | Not recorded | Not recorded | Not recorded |
-| F3. Validation rejects rows | Not recorded | Not recorded | Not recorded | Not recorded | D3 | Not recorded | Not recorded | Not recorded |
-| F4. The source revises data already loaded | Not recorded | Not recorded | Not recorded | Not recorded | D4 | Not recorded | Not recorded | Not recorded |
+| F1. Long refresh runtimes and reducing runtime through narrower date ranges | Y | complete | high | moderate | D | 2 | 2 | Nov 23, 2026 |
+| F2. A source is down or changes its format | Y | not started | moderate | high | B, D | 2 | 0 | — |
+| F3. Validation rejects rows | Y | not started | high | moderate | D3 | 2 | 0 | — |
+| F4. The source revises data already loaded | Y | not started | moderate | moderate | D4 | 2 | 0 | — |
 | **G. Quality checks** | | | | | | | | |
-| G1. Run the tests in `sql/tests/` | Not recorded | Not recorded | Not recorded | Not recorded | E1 | Not recorded | Not recorded | Not recorded |
-| G2. Check row counts and date coverage after a refresh | Not recorded | Not recorded | Not recorded | Not recorded | D2 | Not recorded | Not recorded | Not recorded |
-| G3. Reproduce one documented result | Not recorded | Not recorded | Not recorded | Not recorded | E1 | Not recorded | Not recorded | Not recorded |
+| G1. Run the tests in `sql/tests/` | Y | not started | high | moderate | E1 | 3 | 0 | — |
+| G2. Check row counts and date coverage after a refresh | Y | not started | high | low | D2 | 2 | 0 | — |
+| G3. Reproduce one documented result | Y | not started | high | moderate | E1 | 3 | 0 | — |
+| **Total** | | | | | | **64** | **40** | |
 
 Matt also pointed to the GitHub runbook as a resource. The notes do not specify the exact runbook instructions demonstrated.
 
